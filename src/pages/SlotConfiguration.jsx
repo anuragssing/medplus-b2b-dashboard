@@ -188,7 +188,6 @@ export default function SlotConfiguration() {
           <div style={{ padding: '1.25rem 1.5rem' }}>
             {/* Center Selection */}
             <div className="form-section">
-              <h3 className="form-section-title">Select Center</h3>
               <div className="enroll-plan-select-wrap">
                 <label>Center</label>
                 <select

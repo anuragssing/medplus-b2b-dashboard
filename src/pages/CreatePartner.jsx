@@ -540,9 +540,10 @@ export default function CreatePartner() {
             <div className="form-section">
               <h4 className="form-section-title">| Agreement Documents</h4>
               <div className="upload-actions">
-                <button type="button" className="btn-scan" disabled>Scan ▾</button>
                 <input ref={agreementInputRef} type="file" accept=".jpg,.jpeg,.pdf,.png" multiple style={{ display: 'none' }} onChange={handleAgreementFileChange} />
-                <button type="button" className="btn-browse" disabled={readOnly} onClick={() => agreementInputRef.current?.click()}>Browse</button>
+                <button type="button" className="btn-browse-primary" disabled={readOnly} onClick={() => agreementInputRef.current?.click()}>
+                  📁 Browse Files
+                </button>
               </div>
               <p className="upload-supported">Supported Files: .jpg, .jpeg, .pdf, .png</p>
               {agreementFiles.length > 0 && (

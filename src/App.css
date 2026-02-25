@@ -1003,6 +1003,33 @@
 .upload-actions { display: flex; gap: 0.75rem; margin-bottom: 0.5rem; }
 .btn-scan, .btn-browse { padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid var(--border); background: #f8fafc; }
 .btn-scan { background: #0d9488; color: #fff; border-color: #0d9488; }
+
+/* Modern browse button for file uploads */
+.btn-browse-primary {
+  padding: 0.625rem 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--accent);
+  background: white;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.btn-browse-primary:hover:not(:disabled) {
+  background: var(--accent);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.btn-browse-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .upload-supported { margin: 0; font-size: 0.75rem; color: var(--muted); }
 .uploaded-files-list { margin: 0.75rem 0 0 0; padding-left: 1.25rem; font-size: 0.875rem; }
 .uploaded-files-list li { margin-bottom: 0.25rem; }

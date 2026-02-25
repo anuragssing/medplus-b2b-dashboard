@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useDashboardStore } from '../store/dashboardStore'
 
@@ -7,10 +7,23 @@ export default function CityCatalogueDetail() {
   const navigate = useNavigate()
   const { cityCatalogues, cityCatalogueTestMappings, partners } = useDashboardStore()
 
+  const [searchQuery, setSearchQuery] = useState('')
+
   const catalogue = cityCatalogues.find((c) => c.id === catalogueId)
   const mappedTests = cityCatalogueTestMappings.filter((m) => m.catalogueId === catalogueId)
 
   const getPartnerName = (partnerId) => partners.find((p) => p.id === partnerId)?.name || '—'
+
+  // Filter tests based on search query
+  const filteredTests = useMemo(() => {
+    if (!searchQuery) return mappedTests
+
+    const query = searchQuery.toLowerCase()
+    return mappedTests.filter((test) =>
+      test.testCode?.toLowerCase().includes(query) ||
+      test.testName?.toLowerCase().includes(query)
+    )
+  }, [mappedTests, searchQuery])
 
   if (!catalogue) {
     return (
@@ -79,43 +92,76 @@ export default function CityCatalogueDetail() {
                 <p>No tests mapped to this catalogue yet.</p>
               </div>
             ) : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Test Code</th>
-                      <th>Test Name</th>
-                      <th>Category</th>
-                      <th>Partner</th>
-                      <th>Status</th>
-                      <th>Source</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mappedTests.map((mapping) => {
-                      const isAutoMapping = mapping.id.startsWith('ctm_auto_')
-                      return (
-                        <tr key={mapping.id}>
-                          <td>
-                            <code className="test-code-badge">{mapping.testCode}</code>
-                          </td>
-                          <td style={{ fontWeight: 500 }}>{mapping.testName}</td>
-                          <td>{mapping.category}</td>
-                          <td>{getPartnerName(mapping.partnerId)}</td>
-                          <td>
-                            <span className={`status-badge ${mapping.status === 'active' ? 'status-active' : 'status-inactive'}`}>
-                              {mapping.status?.toUpperCase()}
-                            </span>
-                          </td>
-                          <td style={{ fontSize: '0.82rem', color: '#666' }}>
-                            {isAutoMapping ? '🤖 Auto-generated' : '👤 Manual'}
+              <>
+                {/* Search Bar */}
+                <div className="test-catalog-filters" style={{ marginBottom: '1rem' }}>
+                  <input
+                    type="text"
+                    placeholder="Search by test code or test name…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{ flex: 1, minWidth: '300px' }}
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="btn-secondary"
+                      style={{ padding: '0.5rem 1rem' }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                  <div style={{ marginLeft: 'auto', fontSize: '0.9rem', color: '#666' }}>
+                    Showing {filteredTests.length} of {mappedTests.length} tests
+                  </div>
+                </div>
+
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Test Code</th>
+                        <th>Test Name</th>
+                        <th>Category</th>
+                        <th>Partner</th>
+                        <th>Status</th>
+                        <th>Source</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTests.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                            No tests found matching "{searchQuery}"
                           </td>
                         </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                      ) : (
+                        filteredTests.map((mapping) => {
+                          const isAutoMapping = mapping.id.startsWith('ctm_auto_')
+                          return (
+                            <tr key={mapping.id}>
+                              <td>
+                                <code className="test-code-badge">{mapping.testCode}</code>
+                              </td>
+                              <td style={{ fontWeight: 500 }}>{mapping.testName}</td>
+                              <td>{mapping.category}</td>
+                              <td>{getPartnerName(mapping.partnerId)}</td>
+                              <td>
+                                <span className={`status-badge ${mapping.status === 'active' ? 'status-active' : 'status-inactive'}`}>
+                                  {mapping.status?.toUpperCase()}
+                                </span>
+                              </td>
+                              <td style={{ fontSize: '0.82rem', color: '#666' }}>
+                                {isAutoMapping ? '🤖 Auto-generated' : '👤 Manual'}
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         </section>

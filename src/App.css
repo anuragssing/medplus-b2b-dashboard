@@ -337,6 +337,19 @@
   background: var(--card-bg);
 }
 
+.panel-header {
+  padding: 1.25rem 2rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--elevation-1);
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
 .panel-body {
   padding: 1.5rem 2rem;
 }
@@ -2257,6 +2270,10 @@ label:has(input[type="checkbox"]):not(.form-checkbox-styled) input[type="checkbo
     padding: 1rem;
   }
 
+  .panel-header {
+    padding: 1rem 1.25rem;
+  }
+
   .panel-body {
     padding: 1rem 1.25rem;
   }
@@ -2455,6 +2472,10 @@ label:has(input[type="checkbox"]):not(.form-checkbox-styled) input[type="checkbo
   .panel .form,
   .panel .form.form-modal {
     padding: 0.75rem;
+  }
+
+  .panel-header {
+    padding: 0.75rem 1rem;
   }
 
   .panel-body {

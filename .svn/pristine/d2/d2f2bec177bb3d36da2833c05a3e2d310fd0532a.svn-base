@@ -1,0 +1,206 @@
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
+const initialPartners = [
+  { id: 'p1', name: 'Infosys', partnerType: 'organization', contact: 'partners@infosys.com', status: 'active' },
+  { id: 'p2', name: 'Vijaya Diagnostic', partnerType: 'diagnostic', contact: 'ops@vijayadiagnostic.com', status: 'active' },
+  { id: 'p3', name: 'TCS', partnerType: 'organization', contact: 'bd@tcs.com', status: 'active' },
+  { id: 'p4', name: 'Medquest Collection Center', partnerType: 'processing_center', contact: 'info@medquest.com', status: 'active' },
+  { id: 'p5', name: 'Wipro', partnerType: 'organization', contact: 'bd@wipro.com', status: 'active' },
+]
+
+const initialClients = [
+  { id: 'c1', partnerId: 'p1', companyName: 'Infosys', industry: 'Healthcare', gstNo: '29AABCM1234F1Z5', status: 'Client Onboarded' },
+  { id: 'c2', partnerId: 'p3', companyName: 'TCS', industry: 'Technology', gstNo: '36AACCW5678G2Z9', status: 'Client Onboarded' },
+  { id: 'c3', partnerId: 'p5', companyName: 'Wipro', industry: 'Technology', gstNo: '27AAWPL9876K1Z3', status: 'Client Onboarded' },
+]
+
+const initialCenters = [
+  { id: 'cc1', partnerId: 'p2', name: 'Vijaya Diagnostic Main Lab', city: 'Bangalore', address: 'MG Road', slots: 200 },
+  { id: 'cc2', partnerId: 'p2', name: 'Vijaya Diagnostic North', city: 'Delhi', address: 'Sector 18', slots: 80 },
+  { id: 'cc3', partnerId: 'p4', name: 'Medquest Collection Center', city: 'Mumbai', address: 'Block A, Tech Park', slots: 120 },
+]
+
+const initialBenefits = [
+  { id: 'b1', clientId: 'c1', name: 'Corporate Gold', planType: 'Membership', status: 'Active', termDays: 365 },
+  { id: 'b2', clientId: 'c2', name: 'Employee Wallet Basic', planType: 'Employee Wallet', status: 'Active', termDays: 365 },
+]
+
+const initialPackages = [
+  { id: 'pk1', clientId: 'c1', name: 'Executive Health Check', tests: 25, price: '₹4,999', validMonths: 12 },
+  { id: 'pk2', clientId: 'c1', name: 'Basic Screening', tests: 12, price: '₹1,999', validMonths: 6 },
+  { id: 'pk3', clientId: 'c2', name: 'Employee Wellness Pack', tests: 18, price: '₹2,499', validMonths: 12 },
+]
+
+// Organization summary data
+const initialOrganizationSummaries = [
+  {
+    id: 'os1',
+    clientId: 'c1',
+    companyName: 'Infosys',
+    healthcareSubscriptions: {
+      active: 4,
+      activeMembers: 4,
+      serviced: 0,
+      cancelled: 0,
+    },
+    pharmaSubscriptions: {
+      active: 7,
+      activeMembers: 4,
+      serviced: 0,
+      cancelled: 0,
+    },
+    revenue: [
+      { category: 'Healthcare', mrpValue: 125000, purchaseValue: 95000, savings: 30000 },
+      { category: 'Pharma', mrpValue: 85000, purchaseValue: 68000, savings: 17000 },
+      { category: 'Diagnostics', mrpValue: 45000, purchaseValue: 36000, savings: 9000 },
+    ],
+    agreement: {
+      startDate: '2026-02-17',
+      endDate: '2026-03-31',
+      status: 'Active',
+    },
+  },
+  {
+    id: 'os2',
+    clientId: 'c2',
+    companyName: 'TCS',
+    healthcareSubscriptions: {
+      active: 3,
+      activeMembers: 3,
+      serviced: 1,
+      cancelled: 0,
+    },
+    pharmaSubscriptions: {
+      active: 5,
+      activeMembers: 3,
+      serviced: 0,
+      cancelled: 1,
+    },
+    revenue: [
+      { category: 'Healthcare', mrpValue: 95000, purchaseValue: 75000, savings: 20000 },
+      { category: 'Pharma', mrpValue: 65000, purchaseValue: 52000, savings: 13000 },
+      { category: 'Diagnostics', mrpValue: 35000, purchaseValue: 28000, savings: 7000 },
+    ],
+    agreement: {
+      startDate: '2026-01-01',
+      endDate: '2026-12-31',
+      status: 'Active',
+    },
+  },
+  {
+    id: 'os3',
+    clientId: 'c3',
+    companyName: 'Wipro',
+    healthcareSubscriptions: {
+      active: 0,
+      activeMembers: 0,
+      serviced: 0,
+      cancelled: 0,
+    },
+    pharmaSubscriptions: {
+      active: 8,
+      activeMembers: 6,
+      serviced: 2,
+      cancelled: 0,
+    },
+    revenue: [
+      { category: 'Pharma', mrpValue: 110000, purchaseValue: 88000, savings: 22000 },
+      { category: 'Diagnostics', mrpValue: 55000, purchaseValue: 44000, savings: 11000 },
+    ],
+    agreement: {
+      startDate: '2026-02-01',
+      endDate: '2027-01-31',
+      status: 'Active',
+    },
+  },
+]
+
+// HR user to organization mapping
+const initialHrUsers = [
+  { email: 'hr@infosys.com', clientId: 'c1', companyName: 'Infosys' },
+  { email: 'hr@tcs.com', clientId: 'c2', companyName: 'TCS' },
+  { email: 'hr@wipro.com', clientId: 'c3', companyName: 'Wipro' },
+]
+
+// Subscription records
+const initialSubscriptionRecords = [
+  // Healthcare subscriptions for Infosys (c1) - All active, none serviced
+  { id: 'sub001', clientId: 'c1', type: 'healthcare', subscriptionId: '10860678', createdOn: '2026-02-17', activedOn: '2026-02-17', expiryDate: '2026-02-24', status: 'active', customer: 'Pranay', mobileNo: '8460001456', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub002', clientId: 'c1', type: 'healthcare', subscriptionId: '10860679', createdOn: '2026-02-12', activedOn: '2026-02-12', expiryDate: '2026-02-24', status: 'active', customer: 'Jaikannan', mobileNo: '9000012345', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub003', clientId: 'c1', type: 'healthcare', subscriptionId: '10860680', createdOn: '2026-02-10', activedOn: '2026-02-10', expiryDate: '2026-02-22', status: 'active', customer: 'Ramesh', mobileNo: '9876543210', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub004', clientId: 'c1', type: 'healthcare', subscriptionId: '10860681', createdOn: '2026-02-08', activedOn: '2026-02-08', expiryDate: '2026-02-20', status: 'active', customer: 'Suresh', mobileNo: '9123456789', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+
+  // Pharma subscriptions for Infosys (c1) - All active, none serviced
+  { id: 'sub005', clientId: 'c1', type: 'pharma', subscriptionId: '10860682', createdOn: '2026-02-17', activedOn: '2026-02-17', expiryDate: '2026-02-24', status: 'active', customer: 'Pranay', mobileNo: '8460001456', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub006', clientId: 'c1', type: 'pharma', subscriptionId: '10860683', createdOn: '2026-02-16', activedOn: '2026-02-16', expiryDate: '2026-02-23', status: 'active', customer: 'Jaikannan', mobileNo: '9000012345', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub007', clientId: 'c1', type: 'pharma', subscriptionId: '10860684', createdOn: '2026-02-15', activedOn: '2026-02-15', expiryDate: '2026-02-22', status: 'active', customer: 'Ramesh', mobileNo: '9876543210', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub008', clientId: 'c1', type: 'pharma', subscriptionId: '10860685', createdOn: '2026-02-14', activedOn: '2026-02-14', expiryDate: '2026-02-21', status: 'active', customer: 'Suresh', mobileNo: '9123456789', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub009', clientId: 'c1', type: 'pharma', subscriptionId: '10860686', createdOn: '2026-02-13', activedOn: '2026-02-13', expiryDate: '2026-02-20', status: 'active', customer: 'Vijay', mobileNo: '9988776655', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub010', clientId: 'c1', type: 'pharma', subscriptionId: '10860687', createdOn: '2026-02-12', activedOn: '2026-02-12', expiryDate: '2026-02-19', status: 'active', customer: 'Kumar', mobileNo: '9876512345', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub011', clientId: 'c1', type: 'pharma', subscriptionId: '10860688', createdOn: '2026-02-11', activedOn: '2026-02-11', expiryDate: '2026-02-18', status: 'active', customer: 'Arun', mobileNo: '9123498765', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+
+  // Healthcare subscriptions for TCS (c2) - 3 active, 1 serviced
+  { id: 'sub012', clientId: 'c2', type: 'healthcare', subscriptionId: '10860689', createdOn: '2026-02-10', activedOn: '2026-02-10', expiryDate: '2026-02-24', status: 'active', customer: 'Anita', mobileNo: '9876501234', members: 1, mrpSpends: 1200.00, actualSpends: 950.00, savings: 250.00, mrpUsed: 500, mrpBalance: 500, isServiced: true },
+  { id: 'sub013', clientId: 'c2', type: 'healthcare', subscriptionId: '10860690', createdOn: '2026-02-09', activedOn: '2026-02-09', expiryDate: '2026-02-23', status: 'active', customer: 'Deepak', mobileNo: '9123450987', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub014', clientId: 'c2', type: 'healthcare', subscriptionId: '10860691', createdOn: '2026-02-08', activedOn: '2026-02-08', expiryDate: '2026-02-22', status: 'active', customer: 'Priya', mobileNo: '9988001122', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+
+  // Pharma subscriptions for TCS (c2) - 5 active, 0 serviced, 1 cancelled
+  { id: 'sub015', clientId: 'c2', type: 'pharma', subscriptionId: '10860692', createdOn: '2026-02-15', activedOn: '2026-02-15', expiryDate: '2026-02-25', status: 'active', customer: 'Anita', mobileNo: '9876501234', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub016', clientId: 'c2', type: 'pharma', subscriptionId: '10860693', createdOn: '2026-02-14', activedOn: '2026-02-14', expiryDate: '2026-02-24', status: 'active', customer: 'Deepak', mobileNo: '9123450987', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub017', clientId: 'c2', type: 'pharma', subscriptionId: '10860694', createdOn: '2026-02-13', activedOn: '2026-02-13', expiryDate: '2026-02-23', status: 'active', customer: 'Priya', mobileNo: '9988001122', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub018', clientId: 'c2', type: 'pharma', subscriptionId: '10860695', createdOn: '2026-02-12', activedOn: '2026-02-12', expiryDate: '2026-02-22', status: 'active', customer: 'Ravi', mobileNo: '9876123450', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub019', clientId: 'c2', type: 'pharma', subscriptionId: '10860696', createdOn: '2026-02-11', activedOn: '2026-02-11', expiryDate: '2026-02-21', status: 'active', customer: 'Sanjay', mobileNo: '9123987654', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub019b', clientId: 'c2', type: 'pharma', subscriptionId: '10860696b', createdOn: '2026-01-11', activedOn: '2026-01-11', expiryDate: '2026-02-10', status: 'cancelled', customer: 'Mohan', mobileNo: '9123987655', members: 1, mrpSpends: 850.00, actualSpends: 720.00, savings: 130.00, mrpUsed: 300, mrpBalance: 700, isServiced: true },
+
+  // Pharma subscriptions for Wipro (c3) - 8 active, 2 serviced
+  { id: 'sub020', clientId: 'c3', type: 'pharma', subscriptionId: '10860697', createdOn: '2026-02-16', activedOn: '2026-02-16', expiryDate: '2026-02-26', status: 'active', customer: 'Mohan', mobileNo: '9988112233', members: 1, mrpSpends: 1500.00, actualSpends: 1200.00, savings: 300.00, mrpUsed: 800, mrpBalance: 200, isServiced: true },
+  { id: 'sub021', clientId: 'c3', type: 'pharma', subscriptionId: '10860698', createdOn: '2026-02-15', activedOn: '2026-02-15', expiryDate: '2026-02-25', status: 'active', customer: 'Lakshmi', mobileNo: '9876554321', members: 1, mrpSpends: 1800.00, actualSpends: 1500.00, savings: 300.00, mrpUsed: 600, mrpBalance: 400, isServiced: true },
+  { id: 'sub022', clientId: 'c3', type: 'pharma', subscriptionId: '10860699', createdOn: '2026-02-14', activedOn: '2026-02-14', expiryDate: '2026-02-24', status: 'active', customer: 'Ganesh', mobileNo: '9123776655', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub023', clientId: 'c3', type: 'pharma', subscriptionId: '10860700', createdOn: '2026-02-13', activedOn: '2026-02-13', expiryDate: '2026-02-23', status: 'active', customer: 'Karthik', mobileNo: '9988334455', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub024', clientId: 'c3', type: 'pharma', subscriptionId: '10860701', createdOn: '2026-02-12', activedOn: '2026-02-12', expiryDate: '2026-02-22', status: 'active', customer: 'Naveen', mobileNo: '9876998877', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub025', clientId: 'c3', type: 'pharma', subscriptionId: '10860702', createdOn: '2026-02-11', activedOn: '2026-02-11', expiryDate: '2026-02-21', status: 'active', customer: 'Rajesh', mobileNo: '9123665544', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub026', clientId: 'c3', type: 'pharma', subscriptionId: '10860703', createdOn: '2026-02-10', activedOn: '2026-02-10', expiryDate: '2026-02-20', status: 'active', customer: 'Venkat', mobileNo: '9988223344', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+  { id: 'sub027', clientId: 'c3', type: 'pharma', subscriptionId: '10860704', createdOn: '2026-02-09', activedOn: '2026-02-09', expiryDate: '2026-02-19', status: 'active', customer: 'Harish', mobileNo: '9876445566', members: 1, mrpSpends: 0, actualSpends: 0, savings: 0, mrpUsed: 0, mrpBalance: 1000, isServiced: false },
+]
+
+export const useDashboardStore = create(
+  persist(
+    (set) => ({
+      partners: initialPartners,
+      clients: initialClients,
+      centers: initialCenters,
+      benefits: initialBenefits,
+      packages: initialPackages,
+      organizationSummaries: initialOrganizationSummaries,
+      hrUsers: initialHrUsers,
+      subscriptionRecords: initialSubscriptionRecords,
+
+      addPartner: (partner) =>
+        set((s) => ({
+          partners: [...s.partners, { ...partner, id: partner.id || 'p' + Date.now() }],
+        })),
+
+      addClient: (client) =>
+        set((s) => ({
+          clients: [...s.clients, { ...client, id: client.id || 'c' + Date.now() }],
+        })),
+
+      addCenter: (center) =>
+        set((s) => ({
+          centers: [...s.centers, { ...center, id: center.id || 'cc' + Date.now() }],
+        })),
+
+      addBenefit: (benefit) =>
+        set((s) => ({
+          benefits: [...s.benefits, { ...benefit, id: benefit.id || 'b' + Date.now() }],
+        })),
+
+      addPackage: (pkg) =>
+        set((s) => ({
+          packages: [...s.packages, { ...pkg, id: pkg.id || 'pk' + Date.now() }],
+        })),
+    }),
+    { name: 'bd-dashboard-store' }
+  )
+)

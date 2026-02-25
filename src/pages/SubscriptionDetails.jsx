@@ -1,0 +1,423 @@
+import { useState, useMemo } from 'react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { useDashboardStore } from '../store/dashboardStore.jsx'
+import * as XLSX from 'xlsx'
+import '../App.css'
+
+export default function SubscriptionDetails() {
+  const { type } = useParams()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { user } = useAuth()
+  const { subscriptionRecords, hrUsers, clients, slots, cancelSubscription } = useDashboardStore()
+  
+  const [recordsPerPage, setRecordsPerPage] = useState(25)
+  const [currentPage, setCurrentPage] = useState(1)
+
+  // Get clientId from location state or determine from user
+  const clientId = useMemo(() => {
+    if (location.state?.clientId) {
+      return location.state.clientId
+    }
+    if (user?.type === 'hr') {
+      const hrUser = hrUsers.find(hr => hr.email === user.email)
+      return hrUser?.clientId
+    }
+    return null
+  }, [location.state, user, hrUsers])
+
+  // Get filter type from location state (default: 'active')
+  const filterType = location.state?.filter || 'active'
+
+  // Resolve slotId for a subscription (from record.slotId or from slots by subscriptionId/subscriptionIds)
+  const getSlotIdForRecord = (record) => {
+    if (record.slotId) return record.slotId
+    const slot = (slots || []).find(
+      (sl) => sl.subscriptionId === record.subscriptionId || (Array.isArray(sl.subscriptionIds) && sl.subscriptionIds.includes(record.subscriptionId))
+    )
+    return slot?.slotId ?? '—'
+  }
+
+  // Get organization name
+  const organizationName = useMemo(() => {
+    if (clientId) {
+      const client = clients.find(c => c.id === clientId)
+      return client?.companyName || 'Unknown Organization'
+    }
+    return 'Unknown Organization'
+  }, [clientId, clients])
+
+  // Filter subscription records based on type and filter
+  const filteredRecords = useMemo(() => {
+    if (!clientId || !type) return []
+
+    let records = subscriptionRecords.filter(
+      record => record.clientId === clientId && record.type === type
+    )
+
+    // Apply additional filter based on filterType
+    if (filterType === 'active') {
+      records = records.filter(record => record.status === 'active')
+    } else if (filterType === 'serviced') {
+      records = records.filter(record => record.isServiced === true)
+    } else if (filterType === 'cancelled') {
+      records = records.filter(record => record.status === 'cancelled')
+    }
+    // 'all' shows all records without additional filtering
+
+    return records
+  }, [subscriptionRecords, clientId, type, filterType])
+
+  // Calculate metrics
+  const metrics = useMemo(() => {
+    const totalMrpSpends = filteredRecords.reduce((sum, r) => sum + r.mrpSpends, 0)
+    const totalActualSpends = filteredRecords.reduce((sum, r) => sum + r.actualSpends, 0)
+    const totalSavings = filteredRecords.reduce((sum, r) => sum + r.savings, 0)
+    const totalMembers = filteredRecords.reduce((sum, r) => sum + r.members, 0)
+    const avgMembers = filteredRecords.length > 0 ? (totalMembers / filteredRecords.length).toFixed(1) : 0
+    const unusedMdPoints = filteredRecords.filter(r => r.mrpBalance > 0).length
+
+    return {
+      totalMrpSpends,
+      totalActualSpends,
+      totalSavings,
+      avgMembers,
+      unusedMdPoints,
+    }
+  }, [filteredRecords])
+
+  // Pagination
+  const totalPages = Math.ceil(filteredRecords.length / recordsPerPage)
+  const startIndex = (currentPage - 1) * recordsPerPage
+  const endIndex = startIndex + recordsPerPage
+  const paginatedRecords = filteredRecords.slice(startIndex, endIndex)
+
+  const formatDate = (dateStr) => {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+  }
+
+  const formatCurrency = (value) => {
+    return `+${value.toFixed(2)}`
+  }
+
+  const subscriptionTypeLabel = type === 'healthcare' ? 'Healthcare' : 'Pharma'
+
+  // Get filter label
+  const filterLabel = useMemo(() => {
+    if (filterType === 'active') return 'Active'
+    if (filterType === 'serviced') return 'Serviced'
+    if (filterType === 'cancelled') return 'Cancelled'
+    return 'All'
+  }, [filterType])
+
+  const handleCancelSubscription = (subscriptionId) => {
+    if (window.confirm(`Are you sure you want to cancel subscription ${subscriptionId}?`)) {
+      cancelSubscription(subscriptionId)
+    }
+  }
+
+  const handleDownloadExcel = () => {
+    // Prepare data for Excel
+    const excelData = filteredRecords.map(record => ({
+      'Subscription ID': record.subscriptionId,
+      'Created On': formatDate(record.createdOn),
+      'Actived On': formatDate(record.activedOn),
+      'Expiry Date': formatDate(record.expiryDate),
+      'Status': record.status,
+      'Customer': record.customer,
+      'Mobile No.': record.mobileNo,
+      'Subscribed Plan': record.planName || '-',
+      'MRP Spends': record.mrpSpends,
+      'Actual Spends': record.actualSpends,
+      'Savings': record.savings,
+      'Credit Used': record.mrpUsed,
+      'Credit Balance': record.mrpBalance,
+    }))
+
+    // Create worksheet
+    const ws = XLSX.utils.json_to_sheet(excelData)
+
+    // Set column widths
+    const colWidths = [
+      { wch: 15 }, // Subscription ID
+      { wch: 15 }, // Created On
+      { wch: 15 }, // Actived On
+      { wch: 15 }, // Expiry Date
+      { wch: 10 }, // Status
+      { wch: 20 }, // Customer
+      { wch: 15 }, // Mobile No.
+      { wch: 25 }, // Subscribed Plan
+      { wch: 12 }, // MRP Spends
+      { wch: 12 }, // Actual Spends
+      { wch: 12 }, // Savings
+      { wch: 12 }, // Credit Used
+      { wch: 14 }, // Credit Balance
+    ]
+    ws['!cols'] = colWidths
+
+    // Create workbook
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, `${subscriptionTypeLabel} Subscriptions`)
+
+    // Generate filename
+    const filename = `${organizationName}_${subscriptionTypeLabel}_Subscriptions_${new Date().toISOString().split('T')[0]}.xlsx`
+
+    // Download file
+    XLSX.writeFile(wb, filename)
+  }
+
+  return (
+    <>
+      <header className="main-header">
+        <div>
+          <div style={{ fontSize: '0.875rem', color: 'var(--muted)', marginBottom: '0.25rem' }}>
+            Dashboard / Summary / Detailed Summary
+          </div>
+          <h2 className="page-title">{filterLabel} {subscriptionTypeLabel} Subscriptions</h2>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          {user?.type === 'bd_admin' && (
+            <div style={{
+              padding: '0.5rem 1rem',
+              background: '#f8fafc',
+              borderRadius: '6px',
+              border: '1px solid var(--border)',
+            }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '0.125rem' }}>
+                Organization
+              </div>
+              <div style={{ fontSize: '0.9375rem', fontWeight: 700 }}>
+                <strong>{organizationName}</strong>
+              </div>
+            </div>
+          )}
+          <button
+            onClick={() => navigate('/dashboard/summary', {
+              state: { clientId: clientId }
+            })}
+            style={{
+              padding: '0.5rem 1rem',
+              fontSize: '0.875rem',
+              border: '1px solid var(--border)',
+              borderRadius: '6px',
+              background: 'white',
+              cursor: 'pointer',
+            }}
+          >
+            ← Back to Summary
+          </button>
+        </div>
+      </header>
+
+      <div className="content">
+        {/* Metrics Section */}
+        <section className="panel" style={{ marginBottom: '1.5rem' }}>
+          <div className="overview-kpis" style={{ padding: '1rem' }}>
+            <div className="kpi-card">
+              <span className="kpi-value">₹{metrics.totalMrpSpends.toFixed(2)}</span>
+              <span className="kpi-label">Total MRP Spends</span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-value">₹{metrics.totalActualSpends.toFixed(2)}</span>
+              <span className="kpi-label">Actual Spends</span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-value" style={{ color: 'var(--success)' }}>₹{metrics.totalSavings.toFixed(2)}</span>
+              <span className="kpi-label">Membership Savings</span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-value">{metrics.avgMembers}</span>
+              <span className="kpi-label">Avg Members / Plan</span>
+            </div>
+            <div className="kpi-card">
+              <span className="kpi-value">{metrics.unusedMdPoints}</span>
+              <span className="kpi-label">Subscriptions with unused credit</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Subscription Records Table */}
+        <section className="panel">
+          <div style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 600, margin: 0 }}>
+              Subscription Records
+            </h3>
+            <button
+              onClick={handleDownloadExcel}
+              style={{
+                padding: '0.5rem 1rem',
+                fontSize: '0.875rem',
+                border: '1px solid var(--border)',
+                borderRadius: '6px',
+                background: 'white',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+              }}
+            >
+              <span>📥</span>
+              Download Excel
+            </button>
+          </div>
+
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Slot ID</th>
+                  <th>Subscription ID</th>
+                  <th>Created On</th>
+                  <th>Actived On</th>
+                  <th>Expiry Date</th>
+                  <th>Status</th>
+                  <th>Customer</th>
+                  <th>Mobile No.</th>
+                  <th>Subscribed Plan</th>
+                  <th>MRP Spends</th>
+                  <th>Actual Spends</th>
+                  <th>Savings</th>
+                  <th>Credit Used</th>
+                  <th>Credit Balance</th>
+                  {filterType !== 'cancelled' && <th>Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedRecords.length > 0 ? (
+                  paginatedRecords.map((record) => (
+                    <tr key={record.id}>
+                      <td>{getSlotIdForRecord(record)}</td>
+                      <td>
+                        <a
+                          href="#"
+                          style={{ color: 'var(--accent)', textDecoration: 'none', cursor: 'pointer' }}
+                          onClick={(e) => {
+                            e.preventDefault()
+                            navigate(`/dashboard/subscription/${record.subscriptionId}`)
+                          }}
+                        >
+                          {record.subscriptionId}
+                        </a>
+                      </td>
+                      <td>{formatDate(record.createdOn)}</td>
+                      <td>{formatDate(record.activedOn)}</td>
+                      <td>{formatDate(record.expiryDate)}</td>
+                      <td>
+                        <span className={`badge ${record.status === 'active' ? 'badge-active' : 'badge-inactive'}`}>
+                          {record.status}
+                        </span>
+                      </td>
+                      <td>{record.customer}</td>
+                      <td>{record.mobileNo}</td>
+                      <td>{record.planName || '-'}</td>
+                      <td>{formatCurrency(record.mrpSpends)}</td>
+                      <td>{formatCurrency(record.actualSpends)}</td>
+                      <td style={{ color: 'var(--success)', fontWeight: 600 }}>
+                        {formatCurrency(record.savings)}
+                      </td>
+                      <td>{record.mrpUsed}</td>
+                      <td>{record.mrpBalance}</td>
+                      {filterType !== 'cancelled' && (
+                        <td>
+                          {record.status === 'active' && (
+                            <button
+                              type="button"
+                              className="subscription-cancel-btn"
+                              onClick={() => handleCancelSubscription(record.subscriptionId)}
+                            >
+                              Cancel
+                            </button>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={filterType === 'cancelled' ? 14 : 15} style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)' }}>
+                      No subscription records found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <div style={{
+            padding: '1rem',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderTop: '1px solid var(--border)',
+          }}>
+            <div style={{ fontSize: '0.875rem', color: 'var(--muted)' }}>
+              Showing {startIndex + 1} to {Math.min(endIndex, filteredRecords.length)} of {filteredRecords.length} Records
+            </div>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <label style={{ fontSize: '0.875rem' }}>Records Per Page:</label>
+                <select
+                  value={recordsPerPage}
+                  onChange={(e) => {
+                    setRecordsPerPage(Number(e.target.value))
+                    setCurrentPage(1)
+                  }}
+                  style={{
+                    padding: '0.375rem',
+                    fontSize: '0.875rem',
+                    border: '1px solid var(--border)',
+                    borderRadius: '4px',
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  style={{
+                    padding: '0.375rem 0.75rem',
+                    fontSize: '0.875rem',
+                    border: '1px solid var(--border)',
+                    borderRadius: '4px',
+                    background: 'white',
+                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                    opacity: currentPage === 1 ? 0.5 : 1,
+                  }}
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  style={{
+                    padding: '0.375rem 0.75rem',
+                    fontSize: '0.875rem',
+                    border: '1px solid var(--border)',
+                    borderRadius: '4px',
+                    background: 'white',
+                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                    opacity: currentPage === totalPages ? 0.5 : 1,
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </>
+  )
+}
+

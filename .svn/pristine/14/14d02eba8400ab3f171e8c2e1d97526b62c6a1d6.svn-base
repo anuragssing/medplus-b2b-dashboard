@@ -1,0 +1,265 @@
+import { useState, useMemo } from 'react'
+import { useAuth } from '../context/AuthContext'
+import { useDashboardStore } from '../store/dashboardStore'
+import './AvailableSlots.css'
+
+export default function AvailableSlots() {
+  const { user } = useAuth()
+  const { slots, clients, hrUsers } = useDashboardStore()
+
+  const [selectedOrg, setSelectedOrg] = useState('')
+  const [recordsPerPage, setRecordsPerPage] = useState(25)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+
+  // Get client ID based on user type
+  const clientId = useMemo(() => {
+    if (user?.type === 'hr') {
+      const hrUser = (hrUsers || []).find((u) => u.email === user.email)
+      return hrUser?.clientId || ''
+    }
+    return selectedOrg
+  }, [user, hrUsers, selectedOrg])
+
+  // Get company name
+  const companyName = useMemo(() => {
+    if (!clientId) return ''
+    const client = (clients || []).find((c) => c.id === clientId)
+    return client?.companyName || ''
+  }, [clientId, clients])
+
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
+
+  /** When validTo has passed, slot is expired and can be taken by another subscription. */
+  const getEffectiveStatus = (slot) => {
+    if (slot.validTo && today > slot.validTo) return 'expired'
+    return slot.status || 'active'
+  }
+
+  // Filter slots by organization, type, and status (status uses effective status: expired when validTo passed)
+  const filteredSlots = useMemo(() => {
+    if (!clientId) return []
+
+    let filtered = (slots || []).filter((slot) => slot.clientId === clientId)
+
+    // Apply type filter
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter((slot) => slot.type === typeFilter)
+    }
+
+    // Apply status filter (use effective status so expired = validTo in past)
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter((slot) => getEffectiveStatus(slot) === statusFilter)
+    }
+
+    return filtered
+  }, [slots, clientId, typeFilter, statusFilter, today])
+
+  // Pagination
+  const totalPages = Math.ceil(filteredSlots.length / recordsPerPage)
+  const startIndex = (currentPage - 1) * recordsPerPage
+  const endIndex = startIndex + recordsPerPage
+  const paginatedSlots = filteredSlots.slice(startIndex, endIndex)
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-'
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  }
+
+  const getStatusBadge = (status) => {
+    const statusMap = {
+      active: { label: 'Active', className: 'status-active' },
+      available: { label: 'Available', className: 'status-available' },
+      expired: { label: 'Expired', className: 'status-expired' },
+    }
+    const config = statusMap[status] || { label: status, className: '' }
+    return <span className={`status-badge ${config.className}`}>{config.label}</span>
+  }
+
+  return (
+    <div className="available-slots-page">
+      <div className="slots-top">
+        <div className="page-header">
+          <div>
+            <h1>Slots Dashboard</h1>
+            <p className="page-description">
+              {user?.type === 'bd_admin'
+                ? 'View and manage subscription slots for all organizations'
+                : 'View your organization\'s subscription slots'}
+            </p>
+          </div>
+        </div>
+
+        {/* Organization Selector for BD Admin */}
+        {user?.type === 'bd_admin' && (
+          <div className="org-selector-section">
+            <label htmlFor="org-select">Select Organization:</label>
+            <select
+              id="org-select"
+              value={selectedOrg}
+              onChange={(e) => {
+                setSelectedOrg(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="org-select"
+            >
+              <option value="">-- Select Organization --</option>
+              {(clients || []).filter(client => client.companyName && client.companyName.trim()).map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.companyName}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {/* Organization Name for HR */}
+        {user?.type === 'hr' && companyName && (
+          <div className="org-name-section">
+            <strong>Organization:</strong> {companyName}
+          </div>
+        )}
+      </div>
+
+      {/* Slots Table - only this area scrolls */}
+      <div className="slots-content">
+      {clientId ? (
+        <div className="slots-table-container">
+          <div className="table-controls">
+            <div className="records-per-page">
+              <label>Show:</label>
+              <select value={recordsPerPage} onChange={(e) => {
+                setRecordsPerPage(Number(e.target.value))
+                setCurrentPage(1)
+              }}>
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span>entries</span>
+            </div>
+
+            {/* Filters on the right */}
+            <div className="filters-section">
+              <div className="filter-group">
+                <label htmlFor="type-filter">Benefit Type:</label>
+                <select
+                  id="type-filter"
+                  value={typeFilter}
+                  onChange={(e) => {
+                    setTypeFilter(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                  className="filter-select"
+                >
+                  <option value="all">All</option>
+                  <option value="healthcare">Healthcare</option>
+                  <option value="pharma">Pharma</option>
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <label htmlFor="status-filter">Status:</label>
+                <select
+                  id="status-filter"
+                  value={statusFilter}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                  className="filter-select"
+                >
+                  <option value="all">All</option>
+                  <option value="active">Active</option>
+                  <option value="available">Available</option>
+                  <option value="expired">Expired</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="pagination-info-row">
+            <div className="pagination-info">
+              Showing {startIndex + 1} to {Math.min(endIndex, filteredSlots.length)} of {filteredSlots.length} slots
+            </div>
+          </div>
+
+          <div className="table-wrapper">
+            <table className="slots-table">
+              <thead>
+                <tr>
+                  <th>Slot ID</th>
+                  <th>Subscription ID</th>
+                  <th>Type</th>
+                  <th>Plan Name</th>
+                  <th>Valid From</th>
+                  <th>Valid To</th>
+                  <th>Status</th>
+                  <th>Free Add Members</th>
+                  <th>Paid Add Members</th>
+                  <th>Subscription Free Add on members</th>
+                  <th>Subscription Paid Add on members</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedSlots.length > 0 ? (
+                  paginatedSlots.map((slot) => (
+                    <tr key={slot.id}>
+                      <td>{slot.slotId}</td>
+                      <td>{slot.subscriptionId || '-'}</td>
+                      <td style={{ textTransform: 'capitalize' }}>{slot.type}</td>
+                      <td>{slot.planName}</td>
+                      <td>{formatDate(slot.validFrom)}</td>
+                      <td>{formatDate(slot.validTo)}</td>
+                      <td>{getStatusBadge(getEffectiveStatus(slot))}</td>
+                      <td>{slot.currentFreeAddons ?? 0} / {slot.maxFreeAddons ?? 0}</td>
+                      <td>{slot.currentPaidAddons ?? 0} / {slot.maxPaidAddons ?? 0}</td>
+                      <td>{slot.currentFreeAddons ?? 0}</td>
+                      <td>{slot.currentPaidAddons ?? 0}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="11" style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)' }}>
+                      No slots found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="pagination">
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </button>
+              <span className="page-info">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="no-org-selected">
+          <p>{user?.type === 'bd_admin' ? 'Please select an organization to view slots' : 'No organization found'}</p>
+        </div>
+      )}
+      </div>
+    </div>
+  )
+}
+

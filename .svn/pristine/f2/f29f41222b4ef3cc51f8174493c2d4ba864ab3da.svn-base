@@ -1,0 +1,66 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
+import ProtectedRoute from './components/ProtectedRoute'
+import DocumentTitle from './components/DocumentTitle'
+import DashboardLayout from './components/DashboardLayout'
+import LoginChoice from './pages/LoginChoice'
+import BdAdminLogin from './pages/BdAdminLogin'
+import HrLogin from './pages/HrLogin'
+import Dashboard from './pages/Dashboard'
+import Summary from './pages/Summary'
+import SubscriptionDetails from './pages/SubscriptionDetails'
+import CreateClient from './pages/CreateClient'
+import CreateBenefit from './pages/CreateBenefit'
+import CreatePackage from './pages/CreatePackage'
+import CreatePartner from './pages/CreatePartner'
+import CreateCollectionCenter from './pages/CreateCollectionCenter'
+import PriceCalculator from './pages/PriceCalculator'
+import EnrollEmployee from './pages/EnrollEmployee'
+import RequestDashboard from './pages/RequestDashboard'
+import CreateTest from './pages/CreateTest'
+import TestCenterMapping from './pages/TestCenterMapping'
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <DocumentTitle />
+        <Routes>
+          <Route path="/login" element={<LoginChoice />} />
+          <Route path="/login/bd-admin" element={<BdAdminLogin />} />
+          <Route path="/login/hr" element={<HrLogin />} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <DashboardLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route index element={<Dashboard />} />
+            <Route path="summary" element={<Summary />} />
+            <Route path="subscriptions/:type" element={<SubscriptionDetails />} />
+            <Route path="clients/create" element={<CreateClient />} />
+            <Route path="benefit/create" element={<CreateBenefit />} />
+            <Route path="benefit/view/:id" element={<CreateBenefit />} />
+            <Route path="benefit/edit/:id" element={<CreateBenefit />} />
+            <Route path="package/create" element={<CreatePackage />} />
+            <Route path="partners/create" element={<CreatePartner />} />
+            <Route path="partners/view/:id" element={<CreatePartner mode="view" />} />
+            <Route path="partners/edit/:id" element={<CreatePartner mode="edit" />} />
+            <Route path="centers/create" element={<CreateCollectionCenter />} />
+            <Route path="price-calculator" element={<PriceCalculator />} />
+            <Route path="enroll-employee" element={<EnrollEmployee />} />
+            <Route path="request-dashboard" element={<RequestDashboard />} />
+            <Route path="tests/upload" element={<CreateTest />} />
+            <Route path="tests/mapping" element={<TestCenterMapping />} />
+          </Route>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
+  )
+}
+
+export default App

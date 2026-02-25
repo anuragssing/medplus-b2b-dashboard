@@ -1,0 +1,256 @@
+import { useState, useEffect } from 'react'
+import { useNavigate, Link, useParams, useLocation } from 'react-router-dom'
+import { useDashboardStore } from '../store/dashboardStore.jsx'
+
+const PARTNER_TYPES = [
+  { value: 'organization', label: 'Organization' },
+  { value: 'collection_center', label: 'Collection Center' },
+  { value: 'processing_center', label: 'Processing Center' },
+  { value: 'diagnostic', label: 'Diagnostic' },
+]
+const MAX_HR_EMAILS = 20
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+export default function CreatePartner() {
+  const { id } = useParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const mode = location.pathname.includes('/view/') ? 'view' : location.pathname.includes('/edit/') ? 'edit' : 'create'
+  const partners = useDashboardStore((s) => s.partners) || []
+  const addPartner = useDashboardStore((s) => s.addPartner)
+  const updatePartner = useDashboardStore((s) => s.updatePartner)
+  const [partnerPhone, setPartnerPhone] = useState('')
+  const [partnerEmail, setPartnerEmail] = useState('')
+  const [selectedAddressType, setSelectedAddressType] = useState('primary')
+  const [partnerType, setPartnerType] = useState('')
+  const [hrEmails, setHrEmails] = useState([])
+  const [hrEmailInput, setHrEmailInput] = useState('')
+  const [hrEmailError, setHrEmailError] = useState('')
+
+  const isView = mode === 'view'
+  const isEdit = mode === 'edit'
+  const partner = id ? partners.find((p) => p.id === id) : null
+
+  useEffect(() => {
+    if (partner) {
+      setPartnerType(partner.partnerType || '')
+      setHrEmails(Array.isArray(partner.hrEmails) ? [...partner.hrEmails] : [])
+      const c = (partner.contact || '').trim()
+      if (c) {
+        if (EMAIL_REGEX.test(c)) setPartnerEmail(c)
+        else setPartnerPhone(c)
+      }
+    }
+  }, [partner?.id])
+
+  useEffect(() => {
+    if ((isView || isEdit) && id && !partner) {
+      navigate('/dashboard?tab=partners', { replace: true })
+    }
+  }, [id, partner, isView, isEdit, navigate])
+
+  const handleAddHrEmail = () => {
+    setHrEmailError('')
+    const email = (hrEmailInput || '').trim().toLowerCase()
+    if (!email) {
+      setHrEmailError('Please enter an email address.')
+      return
+    }
+    if (!EMAIL_REGEX.test(email)) {
+      setHrEmailError('Please enter a valid email format (e.g. hr@company.com).')
+      return
+    }
+    if (hrEmails.includes(email)) {
+      setHrEmailError('This email is already added.')
+      return
+    }
+    if (hrEmails.length >= MAX_HR_EMAILS) {
+      setHrEmailError(`Maximum ${MAX_HR_EMAILS} HR emails allowed.`)
+      return
+    }
+    setHrEmails((prev) => [...prev, email])
+    setHrEmailInput('')
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    const fd = new FormData(e.target)
+    const contact = partnerEmail || partnerPhone || fd.get('partner_contactName') || '—'
+    const type = fd.get('partner_type') || 'organization'
+    const collectedHrEmails = type === 'organization' ? hrEmails.filter(Boolean).slice(0, MAX_HR_EMAILS) : []
+    const payload = {
+      name: fd.get('partner_name') || '',
+      partnerType: type,
+      contact,
+      status: fd.get('partner_status') || 'active',
+      ...(type === 'organization' ? { hrEmails: collectedHrEmails } : {}),
+    }
+    if (isEdit && id) {
+      updatePartner(id, payload)
+      navigate('/dashboard?tab=partners', { replace: true })
+    } else {
+      addPartner(payload)
+      navigate('/dashboard?tab=partners', { replace: true })
+    }
+  }
+
+  const backLink = isView || isEdit ? '/dashboard?tab=partners' : '/dashboard?tab=partners'
+  const title = isView ? 'View Partner' : isEdit ? 'Edit Partner' : 'Partner Creation'
+  const desc = isView ? 'Partner details (read-only).' : isEdit ? 'Update partner details below.' : 'Fill in the details below to register as a new partner.'
+  const readOnly = isView
+
+  return (
+    <>
+      <header className="main-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.25rem' }}>
+          <Link to={backLink} className="btn-secondary" style={{ textDecoration: 'none' }}>← Back to Dashboard</Link>
+        </div>
+        <h2 className="page-title">{title}</h2>
+        <p className="page-desc">{desc}</p>
+      </header>
+      <div className="content">
+        <section className="panel">
+          <form className="form form-modal form-partner" onSubmit={handleSubmit} autoComplete="off">
+            <div className="form-section">
+              <h4 className="form-section-title">| Partner Type</h4>
+              <label>Partner Type * <select name="partner_type" required disabled={readOnly} value={partnerType || partner?.partnerType || ''} onChange={(e) => setPartnerType(e.target.value)}>
+                <option value="">Select Partner Type...</option>
+                {PARTNER_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select></label>
+            </div>
+            <div className="form-section">
+              <h4 className="form-section-title">| Partner Details</h4>
+              {(isView || isEdit) && (
+                <div className="form-row form-row-2">
+                  <label>Partner Code <input type="text" placeholder="Auto-generated" readOnly disabled /></label>
+                  <label>Partner Id <input type="text" placeholder="Auto-generated" value={partner?.id ?? ''} readOnly disabled /></label>
+                </div>
+              )}
+              <div className="form-row form-row-2">
+                <label>GST Type <select disabled={readOnly}><option value="">Select</option><option>Register</option><option>Unregister</option></select></label>
+                <label>GSTIN NO <input type="text" placeholder="e.g. 36AAQFM1085K1ZT" readOnly={readOnly} /></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>GSTIN State Code <input type="text" placeholder="e.g. 36" readOnly={readOnly} /></label>
+                <label>Status <select name="partner_status" disabled={readOnly} defaultValue={partner?.status}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>Name * <input name="partner_name" type="text" placeholder="Partner name" required readOnly={readOnly} defaultValue={partner?.name} /></label>
+                <label>PAN Number * <input type="text" placeholder="PAN" required={!readOnly} readOnly={readOnly} /></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>MSME Type <input type="text" placeholder="Optional" readOnly={readOnly} /></label>
+                <label>MSME Category <input type="text" placeholder="Optional" readOnly={readOnly} /></label>
+              </div>
+            </div>
+            <div className="form-section">
+              <h4 className="form-section-title">| Contact Details</h4>
+              <div className="form-row form-row-2">
+                <label>Name <input name="partner_contactName" type="text" placeholder="Contact person name" readOnly={readOnly} defaultValue={partner?.contact} /></label>
+                <label>Fax Number <input type="text" placeholder="Optional" readOnly={readOnly} /></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>Phone Number <input type="tel" name="partner_phone" placeholder="10-digit mobile" value={partnerPhone} onChange={(e) => setPartnerPhone(e.target.value)} readOnly={readOnly} disabled={readOnly} /></label>
+                <label>Email ID <input type="email" name="partner_email" placeholder="email@example.com" value={partnerEmail} onChange={(e) => setPartnerEmail(e.target.value)} readOnly={readOnly} disabled={readOnly} /></label>
+              </div>
+            </div>
+            <div className="form-section">
+              <h4 className="form-section-title">| Business Address Details</h4>
+              <div className="form-row form-row-2">
+                <label>Address Type <input type="text" placeholder="e.g. Office" readOnly={readOnly} /></label>
+                <label>Address Label <input type="text" placeholder="e.g. Head Office" readOnly={readOnly} /></label>
+              </div>
+              <div className="form-row form-row-1">
+                <label>Address <input type="text" placeholder="Full address" readOnly={readOnly} /></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>Pincode <input type="text" placeholder="e.g. 500029" readOnly={readOnly} /></label>
+                <label>Country <input type="text" placeholder="e.g. India" readOnly={readOnly} /></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>State <input type="text" placeholder="e.g. Telangana" readOnly={readOnly} /></label>
+                <label>City <input type="text" placeholder="e.g. Hyderabad" readOnly={readOnly} /></label>
+              </div>
+              <div className="selected-address-box">
+                <h5>Selected Address</h5>
+                <div className="address-type-toggles">
+                  <button type="button" className={selectedAddressType === 'primary' ? 'toggle active primary' : 'toggle'} onClick={() => !readOnly && setSelectedAddressType('primary')} disabled={readOnly}>Primary Address</button>
+                  <button type="button" className={selectedAddressType === 'office' ? 'toggle active' : 'toggle'} onClick={() => !readOnly && setSelectedAddressType('office')} disabled={readOnly}>OFFICE</button>
+                </div>
+                <div className="address-details-box">
+                  <p>Address: —</p>
+                  {!readOnly && <button type="button" className="btn-edit">Edit</button>}
+                </div>
+              </div>
+            </div>
+            {((partnerType || partner?.partnerType) === 'organization') && (
+              <div className="form-section">
+                <h4 className="form-section-title">| HR Email IDs (for OTP login)</h4>
+                <p className="form-hint" style={{ marginBottom: '0.75rem' }}>Add HR emails. These users can sign in with email + OTP and see data for this organization.</p>
+                <div className="form-row form-row-1" style={{ marginBottom: '0.5rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <input
+                      type="text"
+                      placeholder="hr@company.com"
+                      value={hrEmailInput}
+                      onChange={(e) => { setHrEmailInput(e.target.value); setHrEmailError('') }}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddHrEmail())}
+                      readOnly={readOnly}
+                      autoComplete="off"
+                      style={{ flex: '1', minWidth: '200px' }}
+                    />
+                    {!readOnly && (
+                      <button type="button" className="btn-add" onClick={handleAddHrEmail}>Add Email</button>
+                    )}
+                  </label>
+                </div>
+                {hrEmailError && <p className="form-hint" style={{ color: 'var(--error, #c00)', marginBottom: '0.5rem' }}>{hrEmailError}</p>}
+                {hrEmails.length > 0 && (
+                  <div className="table-wrap" style={{ marginTop: '0.75rem' }}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Email</th>
+                          {!readOnly && <th style={{ width: '80px' }}>Action</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {hrEmails.map((email, i) => (
+                          <tr key={i}>
+                            <td>{i + 1}</td>
+                            <td>{email}</td>
+                            {!readOnly && (
+                              <td>
+                                <button type="button" className="btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.8125rem' }} onClick={() => setHrEmails((prev) => prev.filter((_, j) => j !== i))}>Remove</button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="form-section">
+              <h4 className="form-section-title">| Upload KYC Document</h4>
+              <div className="upload-actions">
+                <button type="button" className="btn-scan" disabled={readOnly}>Scan ▾</button>
+                <button type="button" className="btn-browse" disabled={readOnly}>Browse</button>
+              </div>
+              <p className="upload-supported">Supported Files: .jpg, .jpeg, .pdf, .png</p>
+            </div>
+            <div className="form-section-actions" style={{ marginTop: '1.5rem', display: 'flex', gap: '0.75rem' }}>
+              <Link to={backLink} className="btn-secondary" style={{ textDecoration: 'none' }}>Cancel</Link>
+              {!readOnly && <button type="submit" className="btn-primary">{isEdit ? 'Update Partner' : 'Create Partner'}</button>}
+            </div>
+          </form>
+        </section>
+      </div>
+    </>
+  )
+}

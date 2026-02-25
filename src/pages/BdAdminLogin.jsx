@@ -1,0 +1,79 @@
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import './Login.css'
+
+export default function BdAdminLogin() {
+  const navigate = useNavigate()
+  const { login } = useAuth()
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    setError('')
+    if (!username.trim()) {
+      setError('Enter your username')
+      return
+    }
+    if (!password) {
+      setError('Enter your password')
+      return
+    }
+    // Mock auth: accept any username/password for demo
+    login({ type: 'bd_admin', username: username.trim(), name: username.trim() })
+    navigate('/dashboard', { replace: true })
+  }
+
+  return (
+    <div className="login-page">
+      <div className="login-panel login-panel--left">
+        <div className="login-brand-block">
+          <span className="logo-icon logo-icon--img">
+            <img src="/MedPlusLogo.svg" alt="MedPlus" />
+          </span>
+          <h1>B2B Dashboard</h1>
+          <p className="login-tagline">Employee sign in</p>
+        </div>
+      </div>
+      <div className="login-panel login-panel--right">
+        <div className="login-form-wrap">
+          <div className="login-card">
+            <div className="login-brand">
+              <span className="logo-icon logo-icon--img">
+                <img src="/MedPlusLogo.svg" alt="MedPlus" />
+              </span>
+              <h1>Employee</h1>
+            </div>
+            <form className="login-form" onSubmit={handleSubmit}>
+              {error && <div className="login-error">{error}</div>}
+              <label>
+                Username
+                <input
+                  type="text"
+                  placeholder="Enter username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="username"
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  type="password"
+                  placeholder="Enter password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
+              </label>
+              <button type="submit" className="btn-login">Sign in</button>
+            </form>
+            <Link to="/login" className="login-back">← Back to login options</Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

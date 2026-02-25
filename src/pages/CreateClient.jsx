@@ -1,0 +1,78 @@
+import { useNavigate, Link } from 'react-router-dom'
+import { useDashboardStore } from '../store/dashboardStore.jsx'
+
+export default function CreateClient() {
+  const navigate = useNavigate()
+  const addClient = useDashboardStore((s) => s.addClient)
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    const fd = new FormData(e.target)
+    addClient({
+      partnerId: fd.get('client_partnerId') || '',
+      companyName: fd.get('client_companyName') || '',
+      industry: fd.get('client_industry') || '',
+      gstNo: fd.get('client_gstNo') || '',
+      status: 'Client Onboarded',
+    })
+    navigate('/dashboard?tab=clients', { replace: true })
+  }
+
+  return (
+    <>
+      <header className="main-header">
+        <h2 className="page-title">Client Registration</h2>
+        <p className="page-desc">Enter the client details below for approval.</p>
+      </header>
+      <div className="content">
+        <section className="panel">
+          <form className="form form-modal" onSubmit={handleSubmit} autoComplete="off">
+            <div className="form-section">
+              <h4 className="form-section-title">Company Information</h4>
+              <div className="form-row form-row-2">
+                <label>Partner ID <input name="client_partnerId" type="text" placeholder="Select or enter Partner ID" /></label>
+                <label>Company Name * <input name="client_companyName" type="text" placeholder="Organization name" required /></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>Industry Type <input name="client_industry" type="text" placeholder="e.g. Healthcare" /></label>
+                <label>GST Number * <input name="client_gstNo" type="text" placeholder="GST No" required /></label>
+              </div>
+            </div>
+            <div className="form-section">
+              <h4 className="form-section-title">SPOC Details</h4>
+              <div className="form-row form-row-2">
+                <label>SPOC Name * <input name="client_spocName" type="text" placeholder="Full name" required /></label>
+                <label>Email * <input name="client_email" type="email" placeholder="spoc@company.com" required /></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>Organization email domain <input name="client_emailDomain" type="text" placeholder="@company.com" /></label>
+                <label>Contact Number * <input name="client_contact" type="tel" placeholder="10-digit mobile" required /></label>
+              </div>
+            </div>
+            <div className="form-section">
+              <h4 className="form-section-title">Address & Documents</h4>
+              <div className="form-row form-row-1">
+                <label>Address * <input name="client_address" type="text" placeholder="Full address" required /></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>Pin code * <input name="client_pincode" type="text" placeholder="Pincode" required /></label>
+                <label>Document Upload <div className="form-upload-zone">Click to upload or drag and drop — PDF, JPG, PNG, DOC, DOCX (up to 5)</div></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>Agreement start <input name="client_agreementStart" type="date" /></label>
+                <label>Agreement end <input name="client_agreementEnd" type="date" /></label>
+              </div>
+              <div className="form-row form-row-1">
+                <label className="form-checkbox"><input name="client_beneficiaryExcel" type="checkbox" /> Beneficiary Excel upload by BD team / Client HR (editable till plan active)</label>
+              </div>
+            </div>
+            <div className="form-section-actions" style={{ marginTop: '1.5rem', display: 'flex', gap: '0.75rem' }}>
+              <Link to="/dashboard?tab=clients" className="btn-secondary" style={{ textDecoration: 'none' }}>Cancel</Link>
+              <button type="submit" className="btn-primary">Submit for Approval</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </>
+  )
+}

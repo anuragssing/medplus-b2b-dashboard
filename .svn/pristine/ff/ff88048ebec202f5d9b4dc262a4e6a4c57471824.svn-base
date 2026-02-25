@@ -1,0 +1,395 @@
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { useDashboardStore } from '../store/dashboardStore.jsx'
+
+export default function SlotConfiguration() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { 
+    partners = [], 
+    centers = [], 
+    formTypes = [],
+    slotConfigurations = [],
+    addSlotConfiguration,
+    updateSlotConfiguration,
+    deleteSlotConfiguration
+  } = useDashboardStore()
+  
+  // Slot configuration state
+  const [selectedCenterId, setSelectedCenterId] = useState('')
+  const [slotConfigMode, setSlotConfigMode] = useState('form-wise') // 'form-wise' or 'day-wise'
+  const [selectedFormType, setSelectedFormType] = useState('')
+  const [slotsPerDay, setSlotsPerDay] = useState('')
+  const [slotCapacity, setSlotCapacity] = useState('')
+  const [selectedDate, setSelectedDate] = useState('')
+
+  // Initialize from URL parameters on mount
+  useEffect(() => {
+    const centerIdFromUrl = searchParams.get('centerId')
+    
+    if (centerIdFromUrl && centers.some(c => c.id === centerIdFromUrl)) {
+      setSelectedCenterId(centerIdFromUrl)
+    }
+    
+    // Clear URL parameters after reading them
+    if (centerIdFromUrl) {
+      setSearchParams({})
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleFormWiseSlotSubmit = (e) => {
+    e.preventDefault()
+    if (!selectedCenterId || !selectedFormType || !slotsPerDay || !slotCapacity) return
+    
+    addSlotConfiguration({
+      centerId: selectedCenterId,
+      formType: selectedFormType,
+      slotsPerDay: Number(slotsPerDay),
+      slotCapacity: Number(slotCapacity),
+      type: 'form-wise',
+      dayConfigurations: []
+    })
+    
+    // Reset form
+    setSelectedFormType('')
+    setSlotsPerDay('')
+    setSlotCapacity('')
+  }
+
+  const handleDayWiseSlotSubmit = (e) => {
+    e.preventDefault()
+    if (!selectedCenterId || !selectedFormType || !selectedDate || !slotsPerDay || !slotCapacity) return
+    
+    // Find existing configuration for this center and form type
+    const existingConfig = slotConfigurations.find(
+      sc => sc.centerId === selectedCenterId && sc.formType === selectedFormType && sc.type === 'form-wise'
+    )
+    
+    if (existingConfig) {
+      // Add day configuration to existing config
+      const dayConfig = {
+        date: selectedDate,
+        slotsPerDay: Number(slotsPerDay),
+        slotCapacity: Number(slotCapacity)
+      }
+      
+      const updatedDayConfigs = [
+        ...(existingConfig.dayConfigurations || []).filter(dc => dc.date !== selectedDate),
+        dayConfig
+      ]
+      
+      updateSlotConfiguration(existingConfig.id, {
+        dayConfigurations: updatedDayConfigs
+      })
+    } else {
+      // Create new configuration with day config
+      addSlotConfiguration({
+        centerId: selectedCenterId,
+        formType: selectedFormType,
+        slotsPerDay: 0,
+        slotCapacity: 0,
+        type: 'form-wise',
+        dayConfigurations: [{
+          date: selectedDate,
+          slotsPerDay: Number(slotsPerDay),
+          slotCapacity: Number(slotCapacity)
+        }]
+      })
+    }
+    
+    // Reset form
+    setSelectedFormType('')
+    setSelectedDate('')
+    setSlotsPerDay('')
+    setSlotCapacity('')
+  }
+
+  const handleDeleteSlotConfig = (id) => {
+    if (confirm('Are you sure you want to delete this slot configuration?')) {
+      deleteSlotConfiguration(id)
+    }
+  }
+
+  const handleDeleteDayConfig = (configId, date) => {
+    const config = slotConfigurations.find(sc => sc.id === configId)
+    if (!config) return
+    
+    if (confirm(`Are you sure you want to delete the slot configuration for ${date}?`)) {
+      const updatedDayConfigs = (config.dayConfigurations || []).filter(dc => dc.date !== date)
+      updateSlotConfiguration(configId, {
+        dayConfigurations: updatedDayConfigs
+      })
+    }
+  }
+
+  const getPartnerName = (partnerId) => partners.find((p) => p.id === partnerId)?.name || '—'
+  const getCenterName = (centerId) => centers.find((c) => c.id === centerId)?.name || '—'
+  
+  // Get configurations for selected center
+  const centerConfigurations = selectedCenterId 
+    ? slotConfigurations.filter(sc => sc.centerId === selectedCenterId)
+    : []
+
+  return (
+    <>
+      <header className="main-header">
+        <h2 className="page-title">Slot Configuration</h2>
+        <p className="page-desc">Configure form-wise and day-wise slots for collection centers.</p>
+      </header>
+      <div className="content">
+        <section className="panel">
+          <div style={{ padding: '1.25rem 1.5rem' }}>
+            {/* Center Selection */}
+            <div className="form-section">
+              <h3 className="form-section-title">Select Center</h3>
+              <div className="form-row form-row-1">
+                <label>
+                  Center
+                  <select
+                    value={selectedCenterId}
+                    onChange={(e) => setSelectedCenterId(e.target.value)}
+                    required
+                  >
+                    <option value="">Select a center</option>
+                    {centers.map(c => (
+                      <option key={c.id} value={c.id}>{c.name} ({c.id})</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            {selectedCenterId && (
+              <>
+                {/* Configuration Mode Selection */}
+                <div className="form-section" style={{ marginTop: '1.5rem' }}>
+                  <h3 className="form-section-title">Configuration Type</h3>
+                  <div style={{ display: 'flex', gap: '2rem', padding: '0.5rem 0' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="slotConfigMode"
+                        value="form-wise"
+                        checked={slotConfigMode === 'form-wise'}
+                        onChange={(e) => setSlotConfigMode(e.target.value)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      <span style={{ fontWeight: slotConfigMode === 'form-wise' ? 600 : 400 }}>
+                        Form-wise Slots (Default Settings)
+                      </span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="slotConfigMode"
+                        value="day-wise"
+                        checked={slotConfigMode === 'day-wise'}
+                        onChange={(e) => setSlotConfigMode(e.target.value)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      <span style={{ fontWeight: slotConfigMode === 'day-wise' ? 600 : 400 }}>
+                        Day-wise Slots (Date-specific Override)
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Form-wise Slot Configuration */}
+                {slotConfigMode === 'form-wise' && (
+                  <div className="form-section" style={{ marginTop: '1.5rem' }}>
+                    <h3 className="form-section-title">Form-wise Slot Configuration | Default Settings</h3>
+                    <form onSubmit={handleFormWiseSlotSubmit} autoComplete="off">
+                      <div className="form-row form-row-3">
+                        <label>
+                          Form Type
+                          <select
+                            value={selectedFormType}
+                            onChange={(e) => setSelectedFormType(e.target.value)}
+                            required
+                          >
+                            <option value="">Select form type</option>
+                            {formTypes.map(ft => (
+                              <option key={ft} value={ft}>{ft}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Slots Per Day
+                          <input
+                            type="number"
+                            value={slotsPerDay}
+                            onChange={(e) => setSlotsPerDay(e.target.value)}
+                            placeholder="e.g. 10"
+                            min="1"
+                            required
+                          />
+                        </label>
+                        <label>
+                          Slot Capacity
+                          <input
+                            type="number"
+                            value={slotCapacity}
+                            onChange={(e) => setSlotCapacity(e.target.value)}
+                            placeholder="e.g. 5"
+                            min="1"
+                            required
+                          />
+                        </label>
+                      </div>
+                      <div style={{ marginTop: '1rem' }}>
+                        <button type="submit" className="btn-primary">Add Configuration</button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {/* Day-wise Slot Configuration */}
+                {slotConfigMode === 'day-wise' && (
+                  <div className="form-section" style={{ marginTop: '1.5rem' }}>
+                    <h3 className="form-section-title">Day-wise Slot Configuration | Override for Specific Dates</h3>
+                    <form onSubmit={handleDayWiseSlotSubmit} autoComplete="off">
+                      <div className="form-row form-row-4">
+                        <label>
+                          Form Type
+                          <select
+                            value={selectedFormType}
+                            onChange={(e) => setSelectedFormType(e.target.value)}
+                            required
+                          >
+                            <option value="">Select form type</option>
+                            {formTypes.map(ft => (
+                              <option key={ft} value={ft}>{ft}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          Date
+                          <input
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            min={new Date().toISOString().split('T')[0]}
+                            required
+                          />
+                        </label>
+                        <label>
+                          Slots Per Day
+                          <input
+                            type="number"
+                            value={slotsPerDay}
+                            onChange={(e) => setSlotsPerDay(e.target.value)}
+                            placeholder="e.g. 8"
+                            min="0"
+                            required
+                          />
+                        </label>
+                        <label>
+                          Slot Capacity
+                          <input
+                            type="number"
+                            value={slotCapacity}
+                            onChange={(e) => setSlotCapacity(e.target.value)}
+                            placeholder="e.g. 4"
+                            min="0"
+                            required
+                          />
+                        </label>
+                      </div>
+                      <div style={{ marginTop: '1rem' }}>
+                        <button type="submit" className="btn-primary">Add Day Configuration</button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {/* Display Configurations */}
+                {centerConfigurations.length > 0 && (
+                  <div className="form-section" style={{ marginTop: '1.5rem' }}>
+                    <h3 className="form-section-title">Current Configurations | {getCenterName(selectedCenterId)}</h3>
+                    <div className="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Form Type</th>
+                            <th>Default Slots/Day</th>
+                            <th>Default Capacity</th>
+                            <th>Day Overrides</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {centerConfigurations.map(config => (
+                            <tr key={config.id}>
+                              <td><strong>{config.formType}</strong></td>
+                              <td>{config.slotsPerDay}</td>
+                              <td>{config.slotCapacity}</td>
+                              <td>
+                                {config.dayConfigurations && config.dayConfigurations.length > 0 ? (
+                                  <div style={{ fontSize: '0.85rem' }}>
+                                    {config.dayConfigurations.map((dc, idx) => (
+                                      <div key={idx} style={{ marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        <span>
+                                          <strong>{dc.date}:</strong> {dc.slotsPerDay} slots, {dc.slotCapacity} capacity
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteDayConfig(config.id, dc.date)}
+                                          style={{
+                                            background: 'none',
+                                            border: 'none',
+                                            color: 'var(--danger)',
+                                            cursor: 'pointer',
+                                            fontSize: '1rem',
+                                            padding: '0'
+                                          }}
+                                          title="Delete day configuration"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span style={{ color: 'var(--text-muted)' }}>—</span>
+                                )}
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSlotConfig(config.id)}
+                                  className="action-icon"
+                                  title="Delete configuration"
+                                >
+                                  🗑
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {centerConfigurations.length === 0 && (
+                  <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', marginTop: '1.5rem', background: '#f9fafb', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📅</div>
+                    <p>No slot configurations found for this center. Add your first configuration above.</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            {!selectedCenterId && (
+              <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🏢</div>
+                <p>Please select a center to configure slots.</p>
+              </div>
+            )}
+          </div>
+        </section>
+      </div>
+    </>
+  )
+}
+
+

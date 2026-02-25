@@ -1,0 +1,170 @@
+import { useState, useRef, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { useDashboardStore } from '../store/dashboardStore.jsx'
+import '../App.css'
+
+const ACCEPT_FILES = '.csv'
+
+export default function EnrollEmployee() {
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const { benefits = [], clients = [], partners = [], addBenefitRequest } = useDashboardStore()
+  const isAdmin = user?.type === 'bd_admin'
+  const organizationId = user?.type === 'hr' ? user?.organizationId : null
+  const orgClientIds = useMemo(() => {
+    if (!organizationId) return null
+    return (clients || []).filter((c) => c.partnerId === organizationId).map((c) => c.id)
+  }, [organizationId, clients])
+  const allBenefits = benefits.filter((b) => b.status === 'Active' || b.status === 'active')
+  const activeBenefits = organizationId && orgClientIds
+    ? allBenefits.filter((b) => orgClientIds.includes(b.clientId))
+    : allBenefits
+
+  const [subTab, setSubTab] = useState('new') // 'new' | 'addon'
+  const [selectedBenefitId, setSelectedBenefitId] = useState(activeBenefits[0]?.id || '')
+  const [file, setFile] = useState(null)
+  const [noteOpen, setNoteOpen] = useState(false)
+  const fileInputRef = useRef(null)
+
+  const selectedBenefit = activeBenefits.find((b) => b.id === selectedBenefitId) || activeBenefits[0]
+  const getClientName = (id) => clients.find((c) => c.id === id)?.companyName || '—'
+  const selectedClient = selectedBenefit ? clients.find((c) => c.id === selectedBenefit.clientId) : null
+  const orgForEnroll = selectedClient ? partners.find((p) => p.id === selectedClient.partnerId) : null
+
+  const handleFileChange = (e) => {
+    const f = e.target.files?.[0]
+    setFile(f || null)
+  }
+
+  const handleUpload = () => {
+    if (!file || !selectedBenefit) return
+    const orgId = organizationId || (clients.find((c) => c.id === selectedBenefit.clientId)?.partnerId)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      addBenefitRequest({
+        planId: selectedBenefit.id,
+        planName: selectedBenefit.name,
+        totalPrice: 0,
+        uploadedDocumentName: file.name,
+        uploadedDocumentContent: e.target?.result ?? '',
+        ...(orgId ? { organizationId: orgId } : {}),
+      })
+      setFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      navigate('/dashboard/request-dashboard')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const downloadTemplate = () => {
+    const headers = subTab === 'new'
+      ? 'Employee ID,Employee Name,Email,Phone,Date of Joining,Designation'
+      : 'Primary Member ID,Add-on Name,Relationship,Age,Date of Birth'
+    const blob = new Blob([headers], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = subTab === 'new' ? 'employee_enrollment_template.csv' : 'addon_members_template.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const title = subTab === 'new' ? 'Select the Organization Plan to Upload the Employee CSV' : 'Upload the Add-On Members Details'
+  const uploadTitle = subTab === 'new' ? 'Upload Employees' : 'Upload Add-On Members'
+
+  return (
+    <>
+      <header className="main-header">
+        <h2 className="page-title">Enroll Employee</h2>
+        {isAdmin && (
+          <p className="page-desc" style={{ marginBottom: '0.25rem' }}>
+            Organization: {orgForEnroll ? `${orgForEnroll.name} (ID: ${orgForEnroll.id})` : 'Select a plan to see organization.'}
+          </p>
+        )}
+        <p className="page-desc">
+          {organizationId ? 'Plans for your organization. ' : ''}
+          Select a benefit plan and upload employee or add-on member data via CSV.
+        </p>
+      </header>
+      <div className="content">
+        <section className="panel">
+          <div className="panel-tabs">
+            <button type="button" className={`panel-tab ${subTab === 'new' ? 'active' : ''}`} onClick={() => setSubTab('new')}>New Subscription</button>
+            <button type="button" className={`panel-tab ${subTab === 'addon' ? 'active' : ''}`} onClick={() => setSubTab('addon')}>Enroll Add-on Members</button>
+          </div>
+          <div style={{ padding: '1.25rem 1.5rem' }}>
+            <h3 className="page-title" style={{ fontSize: '1.125rem', marginBottom: '1rem' }}>{title}</h3>
+
+            <div className="enroll-plan-select-wrap">
+              <label>Benefit / Plan</label>
+              <select value={selectedBenefitId} onChange={(e) => setSelectedBenefitId(e.target.value)}>
+                {activeBenefits.map((b) => (
+                  <option key={b.id} value={b.id}>{getClientName(b.clientId)} – {b.name}</option>
+                ))}
+                {activeBenefits.length === 0 && <option value="">No benefits configured</option>}
+              </select>
+            </div>
+
+            {selectedBenefit && (
+              <div className="enroll-plan-card">
+                <h4>{selectedBenefit.name} <span className="price-calc-badge">{(selectedBenefit.planType || selectedBenefit.paymentType || 'Plan') === 'Regular' ? 'COMBO' : (selectedBenefit.planType || selectedBenefit.paymentType || 'Plan')}</span></h4>
+                <ul className="enroll-plan-bullets">
+                  {(selectedBenefit.description || 'No description.')
+                    .split(/[.;]\s*/)
+                    .filter(Boolean)
+                    .map((t, i) => (
+                      <li key={i}>✓ {t.trim()}</li>
+                    ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="enroll-header-actions">
+              <h4 className="form-section-title" style={{ marginBottom: 0 }}>{uploadTitle}</h4>
+              <button type="button" className="btn-secondary" onClick={downloadTemplate}>Template</button>
+            </div>
+
+            <div
+              className={`enroll-upload-zone ${file ? 'has-file' : ''}`}
+              onClick={() => fileInputRef.current?.click()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPT_FILES}
+                onChange={handleFileChange}
+              />
+              <span style={{ fontSize: '1rem', fontWeight: 500 }}>Browse</span>
+              <span className="enroll-upload-hint">Supported Files: .csv only</span>
+              {file && <span style={{ marginTop: '0.5rem', fontSize: '0.875rem', color: 'var(--accent)' }}>{file.name}</span>}
+            </div>
+
+            <div className="enroll-actions-row">
+              <button type="button" className="btn-primary" onClick={handleUpload} disabled={!file}>Upload</button>
+            </div>
+
+            <div className="enroll-note">
+              <button type="button" className="enroll-note-header" onClick={() => setNoteOpen(!noteOpen)} aria-expanded={noteOpen}>
+                Note
+                <span>{noteOpen ? '▴' : '▾'}</span>
+              </button>
+              {noteOpen && (
+                <div className="enroll-note-body">
+                  {subTab === 'new' ? (
+                    <>Ensure the CSV has columns: Employee ID, Name, Email, Phone, Date of Joining, and Designation. Download the template and fill in the data before uploading.</>
+                  ) : (
+                    <>For add-on members, use the add-on template. Each row should link to a primary member and include add-on details (name, relationship, age, DOB).</>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+    </>
+  )
+}

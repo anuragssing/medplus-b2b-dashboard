@@ -1,0 +1,743 @@
+import React, { useState, useRef } from 'react'
+import { useDashboardStore } from '../store/dashboardStore'
+import { useToast } from '../context/ToastContext'
+import { INDIAN_STATES, CITIES_BY_STATE } from '../data/indiaLocations'
+import { FaEdit, FaMapMarkedAlt } from 'react-icons/fa'
+import * as XLSX from 'xlsx'
+
+export default function CityCatalogue() {
+  const {
+    cityCatalogues,
+    cityCatalogueTestMappings,
+    tests,
+    partners,
+    addCityCatalogue,
+    updateCityCatalogue,
+    addCityCatalogueTestMappings,
+  } = useDashboardStore()
+
+  const toast = useToast()
+
+  const [activeTab, setActiveTab] = useState('create')
+  const [selectedState, setSelectedState] = useState('')
+  const [selectedCatalogueId, setSelectedCatalogueId] = useState('')
+  const [previewRows, setPreviewRows] = useState([])
+  const [uploadError, setUploadError] = useState('')
+  const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [editingCatalogue, setEditingCatalogue] = useState(null)
+  const fileInputRef = useRef(null)
+
+  // Filters for view tab
+  const [stateFilter, setStateFilter] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  // Filters for map tab
+  const [mapStateFilter, setMapStateFilter] = useState('')
+  const [mapCityFilter, setMapCityFilter] = useState('')
+
+  // Filters for mappings tab
+  const [mappingsStateFilter, setMappingsStateFilter] = useState('')
+  const [mappingsCityFilter, setMappingsCityFilter] = useState('')
+
+  const availableCities = selectedState ? (CITIES_BY_STATE[selectedState] || []) : []
+  const availableCitiesForMapFilter = mapStateFilter ? (CITIES_BY_STATE[mapStateFilter] || []) : []
+  const availableCitiesForMappingsFilter = mappingsStateFilter ? (CITIES_BY_STATE[mappingsStateFilter] || []) : []
+
+  const handleCreateCatalogue = (e) => {
+    e.preventDefault()
+    const fd = new FormData(e.target)
+
+    const catalogueData = {
+      name: fd.get('catalogue_name') || '',
+      state: fd.get('catalogue_state') || '',
+      city: fd.get('catalogue_city') || '',
+      description: fd.get('catalogue_description') || '',
+      status: fd.get('catalogue_status') || 'active',
+    }
+
+    if (editingCatalogue) {
+      updateCityCatalogue(editingCatalogue.id, catalogueData)
+      setEditingCatalogue(null)
+      toast.success('City catalogue updated successfully!')
+    } else {
+      addCityCatalogue({ ...catalogueData, createdAt: new Date().toISOString() })
+      toast.success('City catalogue created successfully!')
+    }
+
+    e.target.reset()
+    setSelectedState('')
+    setActiveTab('view')
+  }
+
+  const handleEditCatalogue = (catalogue) => {
+    setEditingCatalogue(catalogue)
+    setSelectedState(catalogue.state || '')
+    setActiveTab('create')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleCancelEdit = () => {
+    setEditingCatalogue(null)
+    setSelectedState('')
+    setActiveTab('view')
+  }
+
+  const handleMapTests = (catalogue) => {
+    setSelectedCatalogueId(catalogue.id)
+    setActiveTab('map')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleStateChange = (e) => {
+    setSelectedState(e.target.value)
+  }
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadError('')
+    setUploadSuccess(false)
+    setPreviewRows([])
+
+    const reader = new FileReader()
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target.result)
+        const workbook = XLSX.read(data, { type: 'array' })
+        const sheet = workbook.Sheets[workbook.SheetNames[0]]
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' })
+
+        if (!rows.length) {
+          setUploadError('Excel file is empty')
+          return
+        }
+
+        const preview = rows.map((row, idx) => {
+          const testCode = String(row['Test Code'] || '').trim()
+          const status = String(row['Status (active/inactive)'] || 'active').toLowerCase()
+
+          // Find test by test code
+          const test = tests.find((t) => t.testCode === testCode)
+
+          return {
+            _rowId: idx,
+            testCode,
+            status,
+            valid: !!test,
+            testId: test?.id || '',
+            testName: test?.testName || '',
+            category: test?.category || '',
+            partnerId: test?.partnerId || '',
+          }
+        })
+
+        setPreviewRows(preview)
+      } catch (err) {
+        setUploadError('Failed to parse Excel file: ' + err.message)
+      }
+    }
+    reader.readAsArrayBuffer(file)
+  }
+
+  const handleSave = () => {
+    const valid = previewRows.filter((r) => r.valid)
+    if (!valid.length) return
+
+    const mappings = valid.map((r) => ({
+      id: 'ctm_' + Date.now() + '_' + r._rowId,
+      catalogueId: selectedCatalogueId,
+      testId: r.testId,
+      testCode: r.testCode,
+      testName: r.testName,
+      category: r.category,
+      partnerId: r.partnerId,
+      status: r.status || 'active',
+    }))
+
+    addCityCatalogueTestMappings(mappings)
+    toast.success(`${valid.length} test(s) mapped to catalogue successfully!`)
+    setUploadSuccess(true)
+    setPreviewRows([])
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const downloadTemplate = () => {
+    const template = [
+      { 'Test Code': 'VD-001', 'Status (active/inactive)': 'active' },
+      { 'Test Code': 'VD-002', 'Status (active/inactive)': 'active' },
+      { 'Test Code': 'MQ-001', 'Status (active/inactive)': 'active' },
+    ]
+    const ws = XLSX.utils.json_to_sheet(template)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Template')
+    XLSX.writeFile(wb, 'city_catalogue_test_mapping_template.xlsx')
+  }
+
+  const getPartnerName = (partnerId) => partners.find((p) => p.id === partnerId)?.name || '—'
+  const getCatalogueName = (catalogueId) => cityCatalogues.find((c) => c.id === catalogueId)?.name || '—'
+
+  const selectedCatalogue = cityCatalogues.find((c) => c.id === selectedCatalogueId)
+
+  // Get test count for each catalogue
+  const getCatalogueTestCount = (catalogueId) => {
+    return cityCatalogueTestMappings.filter((m) => m.catalogueId === catalogueId).length
+  }
+
+  // Filter catalogues for map tab based on state and city filters
+  const filteredCataloguesForMap = cityCatalogues.filter((c) => {
+    if (mapStateFilter && c.state !== mapStateFilter) return false
+    if (mapCityFilter && c.city !== mapCityFilter) return false
+    return true
+  })
+
+  // Filter test mappings based on state and city filters
+  const filteredTestMappings = cityCatalogueTestMappings.filter((m) => {
+    const catalogue = cityCatalogues.find((c) => c.id === m.catalogueId)
+    if (!catalogue) return false
+    if (mappingsStateFilter && catalogue.state !== mappingsStateFilter) return false
+    if (mappingsCityFilter && catalogue.city !== mappingsCityFilter) return false
+    return true
+  })
+
+  // Filter catalogues based on search and state filter
+  const filteredCatalogues = cityCatalogues.filter(catalogue => {
+    const matchesState = !stateFilter || catalogue.state === stateFilter
+    const matchesSearch = !searchQuery ||
+      catalogue.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      catalogue.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      catalogue.description?.toLowerCase().includes(searchQuery.toLowerCase())
+    return matchesState && matchesSearch
+  })
+
+  return (
+    <>
+      <header className="main-header">
+        <h2 className="page-title">City Catalogues</h2>
+        <p className="page-desc">Create city-specific test catalogues and map tests to them</p>
+      </header>
+      <div className="content">
+        <section className="panel">
+          <div className="panel-tabs">
+            <button className={`panel-tab ${activeTab === 'create' ? 'active' : ''}`} onClick={() => setActiveTab('create')}>
+              Create Catalogue
+            </button>
+            <button className={`panel-tab ${activeTab === 'map' ? 'active' : ''}`} onClick={() => setActiveTab('map')}>
+              Map Tests to Catalogue
+            </button>
+            <button className={`panel-tab ${activeTab === 'catalogues' ? 'active' : ''}`} onClick={() => setActiveTab('catalogues')}>
+              View Catalogues {cityCatalogues?.length ? <span className="tab-badge">{cityCatalogues.length}</span> : null}
+            </button>
+            <button className={`panel-tab ${activeTab === 'mappings' ? 'active' : ''}`} onClick={() => setActiveTab('mappings')}>
+              Catalogue Test Mappings {cityCatalogueTestMappings?.length ? <span className="tab-badge">{cityCatalogueTestMappings.length}</span> : null}
+            </button>
+          </div>
+
+          {/* Tab 1: Create/Edit Catalogue */}
+          {activeTab === 'create' && (
+            <div className="panel-body">
+              {editingCatalogue && (
+                <div style={{
+                  padding: '1rem',
+                  background: '#fff3cd',
+                  border: '1px solid #ffc107',
+                  borderRadius: '8px',
+                  marginBottom: '1rem',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <div>
+                    <strong>✏️ Editing Catalogue:</strong> {editingCatalogue.name} ({editingCatalogue.id})
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={handleCancelEdit}
+                    style={{ padding: '0.5rem 1rem' }}
+                  >
+                    Cancel Edit
+                  </button>
+                </div>
+              )}
+              <form onSubmit={handleCreateCatalogue}>
+                <div className="form-section">
+                  <div className="form-section-title">Catalogue Information</div>
+
+                  <div className="enroll-plan-select-wrap">
+                    <label>Catalogue Name *</label>
+                    <input
+                      type="text"
+                      name="catalogue_name"
+                      placeholder="e.g., Bangalore Premium Tests"
+                      defaultValue={editingCatalogue?.name || ''}
+                      required
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div className="enroll-plan-select-wrap">
+                      <label>State *</label>
+                      <select
+                        name="catalogue_state"
+                        value={selectedState}
+                        onChange={handleStateChange}
+                        required
+                      >
+                        <option value="">-- Select State --</option>
+                        {INDIAN_STATES.map((state) => (
+                          <option key={state} value={state}>{state}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="enroll-plan-select-wrap">
+                      <label>City *</label>
+                      <select
+                        name="catalogue_city"
+                        defaultValue={editingCatalogue?.city || ''}
+                        disabled={!selectedState}
+                        required
+                      >
+                        <option value="">-- Select City --</option>
+                        {availableCities.map((city) => (
+                          <option key={city} value={city}>{city}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="enroll-plan-select-wrap">
+                    <label>Description</label>
+                    <textarea
+                      name="catalogue_description"
+                      placeholder="Brief description of this catalogue"
+                      rows="3"
+                      defaultValue={editingCatalogue?.description || ''}
+                    />
+                  </div>
+
+                  <div className="enroll-plan-select-wrap">
+                    <label>Status</label>
+                    <select name="catalogue_status" defaultValue={editingCatalogue?.status || 'active'}>
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+
+                  <button type="submit" className="btn-primary">
+                    {editingCatalogue ? 'Update Catalogue' : 'Create Catalogue'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Tab 2: Map Tests to Catalogue */}
+          {activeTab === 'map' && (
+            <div className="panel-body">
+              <div className="form-section">
+                <div className="form-section-title">Select Catalogue</div>
+
+                {/* Filters for Catalogue Selection */}
+                <div className="test-catalog-filters" style={{ marginBottom: '1rem' }}>
+                  <select
+                    value={mapStateFilter}
+                    onChange={(e) => {
+                      setMapStateFilter(e.target.value)
+                      setMapCityFilter('') // Reset city filter when state changes
+                    }}
+                    style={{ minWidth: '220px' }}
+                  >
+                    <option value="">All States</option>
+                    {INDIAN_STATES.map((state) => (
+                      <option key={state} value={state}>{state}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={mapCityFilter}
+                    onChange={(e) => setMapCityFilter(e.target.value)}
+                    disabled={!mapStateFilter}
+                    style={{ minWidth: '220px' }}
+                  >
+                    <option value="">All Cities</option>
+                    {availableCitiesForMapFilter.map((city) => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+
+                  {(mapStateFilter || mapCityFilter) && (
+                    <button
+                      onClick={() => {
+                        setMapStateFilter('')
+                        setMapCityFilter('')
+                      }}
+                      className="btn-secondary"
+                      style={{ padding: '0.5rem 1rem' }}
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
+
+                <div className="enroll-plan-select-wrap">
+                  <label>City Catalogue *</label>
+                  <select
+                    value={selectedCatalogueId}
+                    onChange={(e) => {
+                      setSelectedCatalogueId(e.target.value)
+                      setPreviewRows([])
+                      setUploadError('')
+                      setUploadSuccess(false)
+                    }}
+                  >
+                    <option value="">-- Select Catalogue --</option>
+                    {filteredCataloguesForMap.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} - {c.city}, {c.state}
+                      </option>
+                    ))}
+                  </select>
+                  {filteredCataloguesForMap.length === 0 && (mapStateFilter || mapCityFilter) && (
+                    <div style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.5rem' }}>
+                      No catalogues found for the selected filters.
+                    </div>
+                  )}
+                </div>
+
+                {selectedCatalogue && (
+                  <div style={{
+                    padding: '1rem',
+                    background: '#f0f9ff',
+                    borderRadius: '8px',
+                    border: '1px solid #bfdbfe',
+                    marginTop: '1rem'
+                  }}>
+                    <div style={{ fontSize: '0.85rem', color: '#666' }}>Selected Catalogue</div>
+                    <div style={{ fontWeight: 600, fontSize: '1.1rem', marginTop: '0.25rem' }}>
+                      {selectedCatalogue.name}
+                    </div>
+                    <div style={{ fontSize: '0.9rem', color: '#555', marginTop: '0.25rem' }}>
+                      📍 {selectedCatalogue.city}, {selectedCatalogue.state}
+                    </div>
+                    {selectedCatalogue.description && (
+                      <div style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.5rem' }}>
+                        {selectedCatalogue.description}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {selectedCatalogueId && (
+                <>
+                  <div className="form-section">
+                    <div className="form-section-title">Upload Test Mapping Excel</div>
+                    <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1rem' }}>
+                      <button type="button" className="btn-secondary" onClick={downloadTemplate}>
+                        📥 Download Template
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".xlsx,.xls"
+                        onChange={handleFileUpload}
+                        style={{ flex: 1 }}
+                      />
+                    </div>
+                    <p style={{ fontSize: '0.85rem', color: '#666', margin: 0 }}>
+                      Upload an Excel file with columns: <strong>Test Code</strong>, <strong>Status (active/inactive)</strong>
+                    </p>
+                    <p style={{ fontSize: '0.85rem', color: '#059669', margin: '0.5rem 0 0 0', fontStyle: 'italic' }}>
+                      💡 Note: Pricing comes from center mappings, not catalogues. Catalogues only define test availability.
+                    </p>
+                  </div>
+
+                  {uploadError && (
+                    <div className="alert alert-error">{uploadError}</div>
+                  )}
+
+                  {uploadSuccess && (
+                    <div className="alert alert-success">
+                      ✅ Test mappings saved successfully!
+                    </div>
+                  )}
+
+                  {previewRows.length > 0 && (
+                    <div className="form-section">
+                      <div className="form-section-title">
+                        Preview | {previewRows.filter((r) => r.valid).length} valid rows
+                      </div>
+                      <div className="table-wrap">
+                        <table className="test-preview-table">
+                          <thead>
+                            <tr>
+                              <th>Test Code</th>
+                              <th>Test Name</th>
+                              <th>Category</th>
+                              <th>Partner</th>
+                              <th>Status</th>
+                              <th>Match</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {previewRows.map((r) => (
+                              <tr
+                                key={r._rowId}
+                                style={{
+                                  background: !r.valid ? '#fef2f2' : 'white',
+                                }}
+                              >
+                                <td><span className="test-code-badge">{r.testCode}</span></td>
+                                <td>{r.testName || '—'}</td>
+                                <td>{r.category || '—'}</td>
+                                <td style={{ fontSize: '0.82rem', color: '#555' }}>{getPartnerName(r.partnerId)}</td>
+                                <td>
+                                  <span className={`status-badge ${r.status === 'active' ? 'status-active' : 'status-inactive'}`}>
+                                    {r.status}
+                                  </span>
+                                </td>
+                                <td>{r.valid ? <span className="badge badge-active">Match ✓</span> : <span className="badge badge-inactive">No match</span>}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={handleSave}
+                        disabled={previewRows.filter((r) => r.valid).length === 0}
+                      >
+                        Save {previewRows.filter((r) => r.valid).length} Mappings
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Tab 3: View Catalogues */}
+          {activeTab === 'catalogues' && (
+            <div className="panel-body">
+              {/* Filters */}
+              <div className="test-catalog-filters" style={{ marginBottom: '1rem' }}>
+                <input
+                  type="text"
+                  placeholder="Search by catalogue name, city, or description…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ flex: 1, minWidth: '200px' }}
+                />
+                <select
+                  value={stateFilter}
+                  onChange={(e) => setStateFilter(e.target.value)}
+                  style={{ minWidth: '220px' }}
+                >
+                  <option value="">All States</option>
+                  {INDIAN_STATES.map((state) => (
+                    <option key={state} value={state}>{state}</option>
+                  ))}
+                </select>
+              </div>
+
+              {cityCatalogues.length === 0 ? (
+                <div className="test-catalog-empty">
+                  <span>📚</span>
+                  <p>No city catalogues found. Use the "Create Catalogue" tab to create one.</p>
+                </div>
+              ) : (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Catalogue ID</th>
+                        <th>Catalogue Name</th>
+                        <th>State</th>
+                        <th>City</th>
+                        <th>Description</th>
+                        <th>Test Count</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredCatalogues.length === 0 ? (
+                        <tr>
+                          <td colSpan="9" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                            No catalogues found matching your filters.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredCatalogues.map((c) => (
+                        <tr key={c.id}>
+                          <td><span className="test-code-badge">{c.id}</span></td>
+                          <td><strong>{c.name}</strong></td>
+                          <td>{c.state}</td>
+                          <td>{c.city}</td>
+                          <td style={{ fontSize: '0.85rem', color: '#666' }}>{c.description || '—'}</td>
+                          <td>
+                            <span style={{
+                              fontWeight: 600,
+                              color: 'var(--primary)',
+                              background: '#fef2f2',
+                              padding: '0.25rem 0.5rem',
+                              borderRadius: '4px'
+                            }}>
+                              {getCatalogueTestCount(c.id)} tests
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`status-badge ${c.status === 'active' ? 'status-active' : 'status-inactive'}`}>
+                              {c.status?.toUpperCase()}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '0.82rem', color: '#666' }}>
+                            {new Date(c.createdAt).toLocaleDateString()}
+                          </td>
+                          <td>
+                            <button
+                              onClick={() => handleEditCatalogue(c)}
+                              className="action-icon"
+                              title="Edit catalogue"
+                            >
+                              <FaEdit />
+                            </button>
+                            <button
+                              onClick={() => handleMapTests(c)}
+                              className="action-icon"
+                              title="Map tests to catalogue"
+                            >
+                              <FaMapMarkedAlt />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab 4: Catalogue Test Mappings */}
+          {activeTab === 'mappings' && (
+            <div className="panel-body">
+              {cityCatalogueTestMappings.length === 0 ? (
+                <div className="test-catalog-empty">
+                  <span>🗂</span>
+                  <p>No test mappings found. Use the "Map Tests to Catalogue" tab to add tests.</p>
+                </div>
+              ) : (
+                <>
+                  {/* Filters for Test Mappings */}
+                  <div className="test-catalog-filters" style={{ marginBottom: '1rem' }}>
+                    <select
+                      value={mappingsStateFilter}
+                      onChange={(e) => {
+                        setMappingsStateFilter(e.target.value)
+                        setMappingsCityFilter('') // Reset city filter when state changes
+                      }}
+                      style={{ minWidth: '220px' }}
+                    >
+                      <option value="">All States</option>
+                      {INDIAN_STATES.map((state) => (
+                        <option key={state} value={state}>{state}</option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={mappingsCityFilter}
+                      onChange={(e) => setMappingsCityFilter(e.target.value)}
+                      disabled={!mappingsStateFilter}
+                      style={{ minWidth: '220px' }}
+                    >
+                      <option value="">All Cities</option>
+                      {availableCitiesForMappingsFilter.map((city) => (
+                        <option key={city} value={city}>{city}</option>
+                      ))}
+                    </select>
+
+                    {(mappingsStateFilter || mappingsCityFilter) && (
+                      <button
+                        onClick={() => {
+                          setMappingsStateFilter('')
+                          setMappingsCityFilter('')
+                        }}
+                        className="btn-secondary"
+                        style={{ padding: '0.5rem 1rem' }}
+                      >
+                        Clear Filters
+                      </button>
+                    )}
+
+                    <div style={{ marginLeft: 'auto', fontSize: '0.9rem', color: '#666' }}>
+                      Showing {filteredTestMappings.length} of {cityCatalogueTestMappings.length} mappings
+                    </div>
+                  </div>
+
+                  <div className="table-wrap">
+                    <table className="test-preview-table">
+                      <thead>
+                        <tr>
+                          <th>Test Code</th>
+                          <th>Test Name</th>
+                          <th>Category</th>
+                          <th>Partner</th>
+                          <th>Catalogue</th>
+                          <th>City</th>
+                          <th>State</th>
+                          <th>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredTestMappings.length === 0 ? (
+                          <tr>
+                            <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>
+                              No test mappings found for the selected filters.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredTestMappings.map((m) => {
+                            const catalogue = cityCatalogues.find((c) => c.id === m.catalogueId)
+                            return (
+                              <tr key={m.id}>
+                                <td><span className="test-code-badge">{m.testCode}</span></td>
+                                <td>{m.testName}</td>
+                                <td>{m.category}</td>
+                                <td style={{ fontSize: '0.82rem', color: '#555' }}>{getPartnerName(m.partnerId)}</td>
+                                <td style={{ fontSize: '0.85rem' }}>
+                                  {getCatalogueName(m.catalogueId)}
+                                </td>
+                                <td style={{ fontSize: '0.85rem', color: '#555' }}>
+                                  {catalogue?.city || '—'}
+                                </td>
+                                <td style={{ fontSize: '0.85rem', color: '#555' }}>
+                                  {catalogue?.state || '—'}
+                                </td>
+                                <td>
+                                  <span className={`status-badge ${m.status === 'active' ? 'status-active' : 'status-inactive'}`}>
+                                    {m.status?.toUpperCase()}
+                                  </span>
+                                </td>
+                              </tr>
+                            )
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </section>
+      </div>
+    </>
+  )
+}
+

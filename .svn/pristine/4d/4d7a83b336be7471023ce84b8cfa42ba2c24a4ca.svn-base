@@ -1,0 +1,265 @@
+import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { useDashboardStore } from '../store/dashboardStore.jsx'
+import '../App.css'
+
+function formatPrice(n) {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n)
+}
+
+export default function PriceCalculator() {
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const { benefits = [], clients = [], addTopUpRequest, organizationWallets = {} } = useDashboardStore()
+  const organizationId = user?.type === 'hr' ? user?.organizationId : null
+  const walletBalance = organizationId ? (Number(organizationWallets[organizationId]) || 0) : 0
+  const orgClientIds = useMemo(() => {
+    if (!organizationId) return null
+    return (clients || []).filter((c) => c.partnerId === organizationId).map((c) => c.id)
+  }, [organizationId, clients])
+  const allBenefits = benefits.filter((b) => b.status === 'Active' || b.status === 'active')
+  const activeBenefitsRaw = organizationId && orgClientIds
+    ? allBenefits.filter((b) => orgClientIds.includes(b.clientId))
+    : allBenefits
+  // Show benefits that have price config (pharma/health_care) or are combo with valid linked benefits
+  const activeBenefits = useMemo(() => {
+    return activeBenefitsRaw.filter((b) => {
+      if (b.type === 'combo') {
+        return b.comboPharmaBenefitId && b.comboHealthCareBenefitId
+      }
+      const config = Array.isArray(b.priceConfiguration) ? b.priceConfiguration : []
+      return config.some((p) => p.type === 'primary' || p.type === 'free_addon' || p.type === 'addon')
+    })
+  }, [activeBenefitsRaw])
+
+  const [counts, setCounts] = useState({})
+  const getPrimary = (id) => counts[`${id}_primary`] ?? 0
+  const getFreeAddon = (id) => counts[`${id}_free_addon`] ?? 0
+  const getPriceAddon = (id) => counts[`${id}_addon`] ?? 0
+  const setPrimary = (id, value) => setCounts((c) => ({ ...c, [`${id}_primary`]: Math.max(0, Number(value) || 0) }))
+  const setFreeAddon = (id, value) => setCounts((c) => ({ ...c, [`${id}_free_addon`]: Math.max(0, Number(value) || 0) }))
+  const setPriceAddon = (id, value) => setCounts((c) => ({ ...c, [`${id}_addon`]: Math.max(0, Number(value) || 0) }))
+
+  // Member count fields: pharma = primary only; health_care = from config; combo = from linked health_care, primary price = HC + pharma
+  const getBenefitMemberConfig = (b, allBenefitsFromStore = benefits) => {
+    if (b.type === 'pharma') {
+      const config = Array.isArray(b.priceConfiguration) ? b.priceConfiguration : []
+      const primaryRow = config.find((p) => p.type === 'primary')
+      return {
+        hasPrimary: true,
+        hasFreeAddon: false,
+        hasPriceAddon: false,
+        primaryPrice: primaryRow != null ? Number(primaryRow.price) || 0 : Number(b.primaryPrice) || 0,
+        addonPrice: 0,
+        freeAddonMin: null,
+        freeAddonMax: null,
+        priceAddonMin: null,
+        priceAddonMax: null,
+        isRenewalAllowed: !!b.isRenewalAllowed,
+        renewalDays: b.renewalDays != null ? Number(b.renewalDays) : null,
+        isProRataAllowed: !!b.isProRataAllowed,
+      }
+    }
+    if (b.type === 'combo') {
+      const list = allBenefitsFromStore || []
+      const pharma = list.find((x) => x.id === b.comboPharmaBenefitId)
+      const healthCare = list.find((x) => x.id === b.comboHealthCareBenefitId)
+      const hcConfig = healthCare ? getBenefitMemberConfig(healthCare, list) : { hasPrimary: false, hasFreeAddon: false, hasPriceAddon: false, primaryPrice: 0, addonPrice: 0, freeAddonMin: null, freeAddonMax: null, priceAddonMin: null, priceAddonMax: null }
+      const pharmaPrimary = Number(pharma?.primaryPrice) || 0
+      return {
+        hasPrimary: hcConfig.hasPrimary,
+        hasFreeAddon: hcConfig.hasFreeAddon,
+        hasPriceAddon: hcConfig.hasPriceAddon,
+        primaryPrice: hcConfig.primaryPrice + pharmaPrimary,
+        addonPrice: hcConfig.addonPrice,
+        freeAddonMin: hcConfig.freeAddonMin,
+        freeAddonMax: hcConfig.freeAddonMax,
+        priceAddonMin: hcConfig.priceAddonMin,
+        priceAddonMax: hcConfig.priceAddonMax,
+        isRenewalAllowed: !!healthCare?.isRenewalAllowed,
+        renewalDays: healthCare?.renewalDays != null ? Number(healthCare.renewalDays) : null,
+        isProRataAllowed: !!healthCare?.isProRataAllowed,
+      }
+    }
+    const config = Array.isArray(b.priceConfiguration) ? b.priceConfiguration : []
+    const primaryRow = config.find((p) => p.type === 'primary')
+    const freeAddonRow = config.find((p) => p.type === 'free_addon')
+    const addonRow = config.find((p) => p.type === 'addon')
+    return {
+      hasPrimary: !!primaryRow,
+      hasFreeAddon: !!freeAddonRow,
+      hasPriceAddon: !!addonRow,
+      primaryPrice: primaryRow != null ? Number(primaryRow.price) || 0 : Number(b.primaryPrice) || 0,
+      addonPrice: addonRow != null ? Number(addonRow.price) || 0 : Number(b.addOnPrice) || 0,
+      freeAddonMin: freeAddonRow?.minMembers != null ? Number(freeAddonRow.minMembers) : null,
+      freeAddonMax: freeAddonRow?.maxMembers != null ? Number(freeAddonRow.maxMembers) : null,
+      priceAddonMin: addonRow?.minMembers != null ? Number(addonRow.minMembers) : null,
+      priceAddonMax: addonRow?.maxMembers != null ? Number(addonRow.maxMembers) : null,
+      isRenewalAllowed: !!b.isRenewalAllowed,
+      renewalDays: b.renewalDays != null ? Number(b.renewalDays) : null,
+      isProRataAllowed: !!b.isProRataAllowed,
+    }
+  }
+
+  const rows = useMemo(() => {
+    return activeBenefits.map((b) => {
+      const cfg = getBenefitMemberConfig(b)
+      const primaryCount = counts[`${b.id}_primary`] ?? 0
+      const freeAddonCount = counts[`${b.id}_free_addon`] ?? 0
+      const priceAddonCount = counts[`${b.id}_addon`] ?? 0
+      const estimated = (cfg.hasPrimary ? primaryCount * cfg.primaryPrice : 0) + freeAddonCount * 0 + (cfg.hasPriceAddon ? priceAddonCount * cfg.addonPrice : 0)
+      return {
+        id: b.id,
+        name: b.name,
+        planType: b.planType || b.paymentType || 'Plan',
+        primaryCount,
+        freeAddonCount,
+        priceAddonCount,
+        primaryPrice: cfg.primaryPrice,
+        addOnPrice: cfg.addonPrice,
+        estimated,
+        memberConfig: cfg,
+      }
+    })
+  }, [activeBenefits, counts, benefits])
+
+  const totalPrimary = rows.reduce((s, r) => s + r.primaryCount, 0)
+  const totalFreeAddon = rows.reduce((s, r) => s + r.freeAddonCount, 0)
+  const totalPriceAddon = rows.reduce((s, r) => s + r.priceAddonCount, 0)
+  const totalMembers = totalPrimary + totalFreeAddon + totalPriceAddon
+  const recommendedTopUp = rows.reduce((s, r) => s + r.estimated, 0)
+
+  return (
+    <>
+      <header className="main-header">
+        <h2 className="page-title">Membership Price Calculator</h2>
+        <p className="page-desc">
+          {organizationId ? 'Plans for your organization. ' : ''}
+          Calculate prices from benefits. Enter primary and add-on member counts per plan (based on benefit configuration) to see the summary below.
+        </p>
+      </header>
+      <div className="content">
+        <section className="panel price-calculator-summary-bar">
+          <div className="price-calc-kpi"><span className="price-calc-kpi-label">Total Member Count</span><span className="price-calc-kpi-value">{totalMembers}</span></div>
+          <div className="price-calc-kpi"><span className="price-calc-kpi-label">Recommended Top-Up Amount</span><span className="price-calc-kpi-value">{formatPrice(recommendedTopUp)}</span></div>
+          <div className="price-calc-kpi"><span className="price-calc-kpi-label">Wallet Balance</span><span className="price-calc-kpi-value">{formatPrice(walletBalance)}</span></div>
+        </section>
+
+        <h3 className="price-calc-section-title">Membership Plan Calculator</h3>
+        <div className="price-calculator-cards">
+          {activeBenefits.map((b) => {
+            const cfg = getBenefitMemberConfig(b)
+            const primaryCount = getPrimary(b.id)
+            const freeAddonCount = getFreeAddon(b.id)
+            const priceAddonCount = getPriceAddon(b.id)
+            const total = (cfg.hasPrimary ? primaryCount * cfg.primaryPrice : 0) + freeAddonCount * 0 + (cfg.hasPriceAddon ? priceAddonCount * cfg.addonPrice : 0)
+            const desc = b.description || 'No description.'
+            const bullets = desc.split(/[.;]\s*/).filter(Boolean).map((t) => t.trim())
+            const hasAnyMemberField = cfg.hasPrimary || cfg.hasFreeAddon || cfg.hasPriceAddon
+            const priceParts = []
+            if (cfg.hasPrimary) priceParts.push(`Primary: ${formatPrice(cfg.primaryPrice)}/member`)
+            if (cfg.hasFreeAddon) priceParts.push('Free add-on')
+            if (cfg.hasPriceAddon) priceParts.push(`Price add-on: ${formatPrice(cfg.addonPrice)}/member`)
+            return (
+              <div key={b.id} className="price-calc-card">
+                <div className="price-calc-card-header">
+                  <span className="price-calc-card-name">{b.name}</span>
+                  <span className="price-calc-badge">{b.type === 'combo' ? 'COMBO' : b.type === 'pharma' ? 'Pharma' : b.type === 'health_care' ? 'Health Care' : (b.planType || b.paymentType || 'Plan')}</span>
+                </div>
+                <ul className="price-calc-benefits">
+                  {bullets.map((text, i) => (
+                    <li key={i}>✓ {text}</li>
+                  ))}
+                </ul>
+                {hasAnyMemberField && <p className="price-calc-primary-price">{priceParts.join(' · ')}</p>}
+                <div className="price-calc-inputs">
+                  {cfg.hasPrimary && (
+                    <label>
+                      Primary member count
+                      <input type="number" min={0} value={primaryCount || ''} onChange={(e) => setPrimary(b.id, e.target.value)} placeholder="0" autoComplete="off" />
+                    </label>
+                  )}
+                  {cfg.hasFreeAddon && (
+                    <label>
+                      Free add-on member count{cfg.freeAddonMin != null || cfg.freeAddonMax != null ? ` (min ${cfg.freeAddonMin ?? '—'}, max ${cfg.freeAddonMax ?? '—'})` : ''}
+                      <input type="number" min={cfg.freeAddonMin ?? 0} max={cfg.freeAddonMax ?? undefined} value={freeAddonCount || ''} onChange={(e) => setFreeAddon(b.id, e.target.value)} placeholder="0" autoComplete="off" />
+                    </label>
+                  )}
+                  {cfg.hasPriceAddon && (
+                    <label>
+                      Price add-on member count{cfg.priceAddonMin != null || cfg.priceAddonMax != null ? ` (min ${cfg.priceAddonMin ?? '—'}, max ${cfg.priceAddonMax ?? '—'}) @ ${formatPrice(cfg.addonPrice)}/member` : ` @ ${formatPrice(cfg.addonPrice)}/member`}
+                      <input type="number" min={cfg.priceAddonMin ?? 0} max={cfg.priceAddonMax ?? undefined} value={priceAddonCount || ''} onChange={(e) => setPriceAddon(b.id, e.target.value)} placeholder="0" autoComplete="off" />
+                    </label>
+                  )}
+                </div>
+                {(cfg.isRenewalAllowed || cfg.isProRataAllowed) && (
+                  <p className="price-calc-config-hint" style={{ fontSize: '0.85rem', color: 'var(--text-muted, #666)', marginTop: '0.5rem' }}>
+                    {cfg.isRenewalAllowed && cfg.renewalDays != null && <span>Renewal allowed: {cfg.renewalDays} days</span>}
+                    {cfg.isRenewalAllowed && cfg.isProRataAllowed && ' · '}
+                    {cfg.isProRataAllowed && <span>Pro rata allowed</span>}
+                  </p>
+                )}
+                <p className="price-calc-total">Total : {formatPrice(total)}</p>
+              </div>
+            )
+          })}
+        </div>
+
+        {totalMembers > 0 && (
+          <section className="panel price-calculator-summary">
+            <h4 className="form-section-title">Top-Up Summary</h4>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Plan Name</th>
+                    <th>Primary</th>
+                    <th>Free Add-on</th>
+                    <th>Price Add-on</th>
+                    <th>Estimated Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.filter((r) => r.primaryCount > 0 || r.freeAddonCount > 0 || r.priceAddonCount > 0).map((r) => (
+                    <tr key={r.id}>
+                      <td><strong>{r.name}</strong></td>
+                      <td>{r.primaryCount}</td>
+                      <td>{r.freeAddonCount}</td>
+                      <td>{r.priceAddonCount}</td>
+                      <td>{formatPrice(r.estimated)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="price-calc-summary-footer">
+              <span className="price-calc-total-label">Total Top-Up Amount</span>
+              <span className="price-calc-total-value">{formatPrice(recommendedTopUp)}</span>
+            </div>
+            <div className="form-actions" style={{ marginTop: '1rem' }}>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => {
+                  const memberDetails = rows
+                    .filter((r) => r.primaryCount > 0 || r.freeAddonCount > 0 || r.priceAddonCount > 0)
+                    .map((r) => ({ planName: r.name, primaryCount: r.primaryCount, freeAddonCount: r.freeAddonCount, addonCount: r.priceAddonCount }))
+                  addTopUpRequest({
+                    totalMembers: totalMembers,
+                    estimatedPrice: recommendedTopUp,
+                    memberDetails,
+                    ...(organizationId ? { organizationId } : {}),
+                  })
+                  navigate('/dashboard/request-dashboard')
+                }}
+              >
+                Proceed to Top-Up Request
+              </button>
+            </div>
+          </section>
+        )}
+      </div>
+    </>
+  )
+}

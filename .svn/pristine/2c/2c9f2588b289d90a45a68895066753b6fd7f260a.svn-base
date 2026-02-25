@@ -1,0 +1,55 @@
+import { useNavigate, Link } from 'react-router-dom'
+import { useDashboardStore } from '../store/dashboardStore.jsx'
+
+export default function CreateCollectionCenter() {
+  const navigate = useNavigate()
+  const { partners = [], addCenter } = useDashboardStore()
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    const fd = new FormData(e.target)
+    addCenter({
+      partnerId: fd.get('center_partnerId') || '',
+      name: fd.get('center_name') || '',
+      city: fd.get('center_city') || '',
+      address: fd.get('center_address') || '',
+      slots: Number(fd.get('center_slots')) || 0,
+    })
+    navigate('/dashboard?tab=partners', { replace: true })
+  }
+
+  return (
+    <>
+      <header className="main-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.25rem' }}>
+          <Link to="/dashboard?tab=partners" className="btn-secondary" style={{ textDecoration: 'none' }}>← Back to Dashboard</Link>
+        </div>
+        <h2 className="page-title">Create Collection Center</h2>
+        <p className="page-desc">Add a new collection center and link it to a partner.</p>
+      </header>
+      <div className="content">
+        <section className="panel">
+          <form className="form form-modal" onSubmit={handleSubmit} autoComplete="off">
+            <div className="form-section">
+              <div className="form-row form-row-2">
+                <label>Center name <input name="center_name" type="text" placeholder="e.g. Central Hub" /></label>
+                <label>Partner <select name="center_partnerId"><option value="">Select partner</option>{partners.filter(p => p.partnerType !== 'organization').map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>City <input name="center_city" type="text" placeholder="e.g. Mumbai" /></label>
+                <label>Slots <input name="center_slots" type="number" placeholder="120" min={1} /></label>
+              </div>
+              <div className="form-row form-row-1">
+                <label>Address <input name="center_address" type="text" placeholder="Full address" /></label>
+              </div>
+            </div>
+            <div className="form-section-actions" style={{ marginTop: '1.5rem', display: 'flex', gap: '0.75rem' }}>
+              <Link to="/dashboard?tab=partners" className="btn-secondary" style={{ textDecoration: 'none' }}>Cancel</Link>
+              <button type="submit" className="btn-primary">Create Center</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </>
+  )
+}

@@ -1,0 +1,340 @@
+import { useState, useMemo, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { useDashboardStore } from '../store/dashboardStore'
+import '../App.css'
+
+export default function Summary() {
+  const { user } = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { organizationSummaries, hrUsers, clients } = useDashboardStore()
+  const [selectedClientId, setSelectedClientId] = useState('')
+
+  // Set selectedClientId from location.state if coming from subscription details page
+  useEffect(() => {
+    if (location.state?.clientId && user?.type === 'bd_admin') {
+      setSelectedClientId(location.state.clientId)
+    }
+  }, [location.state, user])
+
+  // Determine which organization to show
+  const organizationData = useMemo(() => {
+    if (user?.type === 'hr') {
+      // For HR users, find their organization based on email
+      const hrUser = hrUsers.find(hr => hr.email === user.email)
+      if (hrUser) {
+        return organizationSummaries.find(os => os.clientId === hrUser.clientId)
+      }
+      return null
+    } else if (user?.type === 'bd_admin') {
+      // For BD Admin, show selected organization
+      if (selectedClientId) {
+        return organizationSummaries.find(os => os.clientId === selectedClientId)
+      }
+      return null
+    }
+    return null
+  }, [user, hrUsers, organizationSummaries, selectedClientId])
+
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(value)
+  }
+
+  const handleSubscriptionClick = (type, filter = 'all') => {
+    if (organizationData) {
+      navigate(`/dashboard/subscriptions/${type}`, {
+        state: {
+          clientId: organizationData.clientId,
+          filter: filter // 'all', 'active', 'serviced', 'cancelled'
+        }
+      })
+    }
+  }
+
+  return (
+    <>
+      <header className="main-header">
+        <div>
+          <h2 className="page-title">Organization Summary</h2>
+          <p className="page-desc">
+            {user?.type === 'hr'
+              ? 'View your organization\'s subscription and usage metrics'
+              : 'Select an organization to view detailed summary'}
+          </p>
+        </div>
+        {/* Show organization name for HR users */}
+        {user?.type === 'hr' && organizationData && (
+          <div style={{
+            padding: '0.75rem 1.25rem',
+            background: '#f8fafc',
+            borderRadius: '8px',
+            border: '1px solid var(--border)',
+          }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '0.125rem' }}>
+              Organization
+            </div>
+            <div style={{ fontSize: '1.125rem', fontWeight: 700 }}>
+              <strong>{organizationData.companyName}</strong>
+            </div>
+          </div>
+        )}
+      </header>
+
+      <div className="content">
+        {/* Organization Selector for BD Admin */}
+        {user?.type === 'bd_admin' && (
+          <section className="panel" style={{ marginBottom: '1.5rem' }}>
+            <div style={{ padding: '1rem' }}>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
+                Select Organization
+              </label>
+              <select
+                value={selectedClientId}
+                onChange={(e) => setSelectedClientId(e.target.value)}
+                autoComplete="off"
+                style={{
+                  width: '100%',
+                  maxWidth: '400px',
+                  padding: '0.625rem',
+                  fontSize: '0.9375rem',
+                  border: '1px solid var(--border)',
+                  borderRadius: '6px',
+                  background: 'var(--bg)',
+                  color: 'var(--text)',
+                }}
+              >
+                <option value="">-- Select an organization --</option>
+                {clients.map(client => (
+                  <option key={client.id} value={client.id}>
+                    {client.companyName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </section>
+        )}
+
+        {/* Summary Data Display */}
+        {organizationData ? (
+          <>
+            {/* Healthcare Subscription Metrics - Only show if active count > 0 */}
+            {organizationData.healthcareSubscriptions.active > 0 && (
+              <section className="panel" style={{ marginBottom: '1.5rem' }}>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '1rem', padding: '0 1rem', paddingTop: '1rem' }}>
+                  Healthcare Subscription & Usage
+                </h3>
+                <div className="overview-kpis" style={{ padding: '0 1rem 1rem' }}>
+                  {/* Active Subscriptions - Clickable if count > 0 */}
+                  <div
+                    className="kpi-card"
+                    style={{
+                      cursor: organizationData.healthcareSubscriptions.active > 0 ? 'pointer' : 'default',
+                      transition: 'box-shadow 0.2s',
+                    }}
+                    onClick={() => organizationData.healthcareSubscriptions.active > 0 && handleSubscriptionClick('healthcare', 'active')}
+                    onMouseEnter={(e) => {
+                      if (organizationData.healthcareSubscriptions.active > 0) {
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'
+                      }
+                    }}
+                    onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+                  >
+                    <span className="kpi-value">{organizationData.healthcareSubscriptions.active}</span>
+                    <span className="kpi-label">Active Subscriptions</span>
+                  </div>
+
+                  {/* Active Members - NOT Clickable */}
+                  <div className="kpi-card">
+                    <span className="kpi-value">{organizationData.healthcareSubscriptions.activeMembers}</span>
+                    <span className="kpi-label">Active Members</span>
+                  </div>
+
+                  {/* Serviced Subscriptions - Clickable if count > 0 */}
+                  <div
+                    className="kpi-card"
+                    style={{
+                      cursor: organizationData.healthcareSubscriptions.serviced > 0 ? 'pointer' : 'default',
+                      transition: 'box-shadow 0.2s',
+                    }}
+                    onClick={() => organizationData.healthcareSubscriptions.serviced > 0 && handleSubscriptionClick('healthcare', 'serviced')}
+                    onMouseEnter={(e) => {
+                      if (organizationData.healthcareSubscriptions.serviced > 0) {
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'
+                      }
+                    }}
+                    onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+                  >
+                    <span className="kpi-value">{organizationData.healthcareSubscriptions.serviced}</span>
+                    <span className="kpi-label">Serviced Subscriptions</span>
+                  </div>
+
+                  {/* Serviced Members - NOT Clickable */}
+                  <div className="kpi-card">
+                    <span className="kpi-value">{organizationData.healthcareSubscriptions.servicedMembers || 0}</span>
+                    <span className="kpi-label">Serviced Members</span>
+                  </div>
+
+                  {/* Cancelled Subscriptions - Clickable if count > 0 */}
+                  <div
+                    className="kpi-card"
+                    style={{
+                      cursor: organizationData.healthcareSubscriptions.cancelled > 0 ? 'pointer' : 'default',
+                      transition: 'box-shadow 0.2s',
+                    }}
+                    onClick={() => organizationData.healthcareSubscriptions.cancelled > 0 && handleSubscriptionClick('healthcare', 'cancelled')}
+                    onMouseEnter={(e) => {
+                      if (organizationData.healthcareSubscriptions.cancelled > 0) {
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'
+                      }
+                    }}
+                    onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+                  >
+                    <span className="kpi-value">{organizationData.healthcareSubscriptions.cancelled}</span>
+                    <span className="kpi-label">Cancelled Subs</span>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Pharma Subscription Metrics - Only show if active count > 0 */}
+            {organizationData.pharmaSubscriptions.active > 0 && (
+              <section className="panel" style={{ marginBottom: '1.5rem' }}>
+                <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '1rem', padding: '0 1rem', paddingTop: '1rem' }}>
+                  Pharma Subscription & Usage
+                </h3>
+                <div className="overview-kpis" style={{ padding: '0 1rem 1rem' }}>
+                  {/* Active Subscriptions - Clickable if count > 0 */}
+                  <div
+                    className="kpi-card"
+                    style={{
+                      cursor: organizationData.pharmaSubscriptions.active > 0 ? 'pointer' : 'default',
+                      transition: 'box-shadow 0.2s',
+                    }}
+                    onClick={() => organizationData.pharmaSubscriptions.active > 0 && handleSubscriptionClick('pharma', 'active')}
+                    onMouseEnter={(e) => {
+                      if (organizationData.pharmaSubscriptions.active > 0) {
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'
+                      }
+                    }}
+                    onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+                  >
+                    <span className="kpi-value">{organizationData.pharmaSubscriptions.active}</span>
+                    <span className="kpi-label">Active Subscriptions</span>
+                  </div>
+
+                  {/* Active Members - NOT Clickable */}
+                  <div className="kpi-card">
+                    <span className="kpi-value">{organizationData.pharmaSubscriptions.activeMembers}</span>
+                    <span className="kpi-label">Active Members</span>
+                  </div>
+
+                  {/* Serviced Subscriptions - Clickable if count > 0 */}
+                  <div
+                    className="kpi-card"
+                    style={{
+                      cursor: organizationData.pharmaSubscriptions.serviced > 0 ? 'pointer' : 'default',
+                      transition: 'box-shadow 0.2s',
+                    }}
+                    onClick={() => organizationData.pharmaSubscriptions.serviced > 0 && handleSubscriptionClick('pharma', 'serviced')}
+                    onMouseEnter={(e) => {
+                      if (organizationData.pharmaSubscriptions.serviced > 0) {
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'
+                      }
+                    }}
+                    onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+                  >
+                    <span className="kpi-value">{organizationData.pharmaSubscriptions.serviced}</span>
+                    <span className="kpi-label">Serviced Subscriptions</span>
+                  </div>
+
+                  {/* Serviced Members - NOT Clickable */}
+                  <div className="kpi-card">
+                    <span className="kpi-value">{organizationData.pharmaSubscriptions.servicedMembers || 0}</span>
+                    <span className="kpi-label">Serviced Members</span>
+                  </div>
+
+                  {/* Cancelled Subscriptions - Clickable if count > 0 */}
+                  <div
+                    className="kpi-card"
+                    style={{
+                      cursor: organizationData.pharmaSubscriptions.cancelled > 0 ? 'pointer' : 'default',
+                      transition: 'box-shadow 0.2s',
+                    }}
+                    onClick={() => organizationData.pharmaSubscriptions.cancelled > 0 && handleSubscriptionClick('pharma', 'cancelled')}
+                    onMouseEnter={(e) => {
+                      if (organizationData.pharmaSubscriptions.cancelled > 0) {
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'
+                      }
+                    }}
+                    onMouseLeave={(e) => e.currentTarget.style.boxShadow = 'none'}
+                  >
+                    <span className="kpi-value">{organizationData.pharmaSubscriptions.cancelled}</span>
+                    <span className="kpi-label">Cancelled Subs</span>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Revenue & Savings Table */}
+            <section className="panel">
+              <h3 style={{ fontSize: '1.125rem', fontWeight: 600, marginBottom: '1rem', padding: '0 1rem', paddingTop: '1rem' }}>
+                Revenue & Savings
+              </h3>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Category</th>
+                      <th>MRP Value</th>
+                      <th>Purchase Value</th>
+                      <th>Savings</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {organizationData.revenue.map((item, index) => (
+                      <tr key={index}>
+                        <td><strong>{item.category}</strong></td>
+                        <td>{formatCurrency(item.mrpValue)}</td>
+                        <td>{formatCurrency(item.purchaseValue)}</td>
+                        <td style={{ color: 'var(--success)', fontWeight: 600 }}>
+                          {formatCurrency(item.savings)}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr style={{ borderTop: '2px solid var(--border)', fontWeight: 600 }}>
+                      <td><strong>Total</strong></td>
+                      <td>
+                        {formatCurrency(organizationData.revenue.reduce((sum, item) => sum + item.mrpValue, 0))}
+                      </td>
+                      <td>
+                        {formatCurrency(organizationData.revenue.reduce((sum, item) => sum + item.purchaseValue, 0))}
+                      </td>
+                      <td style={{ color: 'var(--success)' }}>
+                        {formatCurrency(organizationData.revenue.reduce((sum, item) => sum + item.savings, 0))}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </>
+        ) : (
+          <section className="panel">
+            <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--muted)' }}>
+              {user?.type === 'bd_admin' ? (
+                <p>Please select an organization to view summary</p>
+              ) : (
+                <p>No organization data available for your account</p>
+              )}
+            </div>
+          </section>
+        )}
+      </div>
+    </>
+  )
+}

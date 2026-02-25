@@ -1,0 +1,536 @@
+import { useState, useRef, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import * as XLSX from 'xlsx'
+import { useDashboardStore } from '../store/dashboardStore.jsx'
+import { getPartnerLabel } from '../utils/partnerUtils.js'
+import '../App.css'
+
+const PARTNER_TYPES = ['diagnostic', 'collection_center', 'processing_center']
+
+export default function TestCenterMapping() {
+  const storeState = useDashboardStore()
+  const { partners: rawPartners, centers: rawCenters, tests: rawTests, testCenterMappings: rawMappings, addTestCenterMappings } = storeState
+  const partners = rawPartners || []
+  const centers = rawCenters || []
+  const tests = rawTests || []
+  const testCenterMappings = rawMappings || []
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState('map')
+
+  // --- Map Tests tab state ---
+  const [selectedPartnerId, setSelectedPartnerId] = useState('')
+  const [selectedCenterId, setSelectedCenterId] = useState('')
+  const [previewRows, setPreviewRows] = useState([])
+  const [uploadError, setUploadError] = useState('')
+  const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [partnerDropdownHighlight, setPartnerDropdownHighlight] = useState(false)
+  const [centerDropdownHighlight, setCenterDropdownHighlight] = useState(false)
+  const fileInputRef = useRef(null)
+
+  // --- Catalog tab state ---
+  const [filterPartnerId, setFilterPartnerId] = useState('')
+  const [filterCenterId, setFilterCenterId] = useState('')
+  const [catalogSearch, setCatalogSearch] = useState('')
+
+  // Computed values
+  const eligiblePartners = partners.filter((p) => PARTNER_TYPES.includes(p.partnerType))
+
+  // Initialize from URL parameters on mount
+  useEffect(() => {
+    const partnerIdFromUrl = searchParams.get('partnerId')
+    const centerIdFromUrl = searchParams.get('centerId')
+
+    if (partnerIdFromUrl && eligiblePartners.some(p => p.id === partnerIdFromUrl)) {
+      setSelectedPartnerId(partnerIdFromUrl)
+
+      if (centerIdFromUrl && centers.some(c => c.id === centerIdFromUrl && c.partnerId === partnerIdFromUrl)) {
+        setSelectedCenterId(centerIdFromUrl)
+      }
+
+      // Clear URL parameters after reading them
+      setSearchParams({})
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handlePartnerChange = (e) => {
+    setSelectedPartnerId(e.target.value)
+    setSelectedCenterId('')
+    setPreviewRows([])
+    setUploadError('')
+    setPartnerDropdownHighlight(true)
+    setTimeout(() => setPartnerDropdownHighlight(false), 500)
+  }
+
+  const handleCenterChange = (e) => {
+    setSelectedCenterId(e.target.value)
+    setPreviewRows([])
+    setUploadError('')
+    setCenterDropdownHighlight(true)
+    setTimeout(() => setCenterDropdownHighlight(false), 500)
+  }
+
+  const partnerCenters = selectedPartnerId
+    ? centers.filter((c) => c.partnerId === selectedPartnerId)
+    : []
+
+  const partnerTests = selectedPartnerId
+    ? tests.filter((t) => t.partnerId === selectedPartnerId)
+    : []
+  const selectedCenter = centers.find((c) => c.id === selectedCenterId)
+  const selectedPartner = partners.find((p) => p.id === selectedPartnerId)
+
+  // Download template pre-filled with partner's tests
+  const downloadTemplate = () => {
+    if (!selectedPartnerId || !selectedCenterId) return
+    const headers = ['Test Code', 'Test Name', 'Category', 'Center Price (₹)', 'Status (active/inactive)']
+    const rows = partnerTests.map((t) => [t.testCode, t.testName, t.category, t.price, 'active'])
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+    ws['!cols'] = [{ wch: 12 }, { wch: 35 }, { wch: 18 }, { wch: 18 }, { wch: 20 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Center Mapping Template')
+    const partnerName = selectedPartner?.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'partner'
+    const centerName = selectedCenter?.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'center'
+    XLSX.writeFile(wb, `center_mapping_${partnerName}_${centerName}.xlsx`)
+  }
+
+  // Parse uploaded Excel
+  const parseExcel = (file) => {
+    setUploadError('')
+    setPreviewRows([])
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result)
+        const wb = XLSX.read(data, { type: 'array' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const raw = XLSX.utils.sheet_to_json(ws, { header: 1 })
+        // Filter rows that have at least a test code (allow empty center price for preview)
+        const dataRows = raw.slice(1).filter((r) => r[0])
+        if (!dataRows.length) {
+          setUploadError('No valid rows found. Make sure the file has test codes.')
+          return
+        }
+        const parsed = dataRows.map((r, i) => {
+          const testCode = String(r[0] || '').trim()
+          const match = partnerTests.find((t) => t.testCode === testCode)
+          const centerPrice = r[3] !== undefined && r[3] !== '' ? Number(r[3]) : null
+          return {
+            _rowId: i,
+            testCode,
+            testName: String(r[1] || match?.testName || ''),
+            category: String(r[2] || match?.category || ''),
+            partnerPrice: match?.price || 0,
+            centerPrice: centerPrice !== null ? centerPrice : 0,
+            status: String(r[4] || 'active').trim().toLowerCase(),
+            testId: match?.id || '',
+            valid: !!match,
+            hasCenterPrice: centerPrice !== null && centerPrice !== '',
+          }
+        })
+        setPreviewRows(parsed)
+      } catch {
+        setUploadError('Failed to parse file. Please use the downloaded template.')
+      }
+    }
+    reader.readAsArrayBuffer(file)
+  }
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0]
+    if (file) parseExcel(file)
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    const file = e.dataTransfer.files?.[0]
+    if (file) parseExcel(file)
+  }
+
+  const handleSave = () => {
+    const valid = previewRows.filter((r) => r.valid && r.centerPrice > 0)
+    if (!valid.length) return
+    const mappings = valid.map((r) => ({
+      id: 'tcm_' + Date.now() + '_' + r._rowId,
+      partnerId: selectedPartnerId,
+      centerId: selectedCenterId,
+      testId: r.testId,
+      testCode: r.testCode,
+      testName: r.testName,
+      category: r.category,
+      partnerPrice: r.partnerPrice,
+      centerPrice: r.centerPrice,
+      status: r.status || 'active',
+    }))
+    addTestCenterMappings(mappings)
+    setUploadSuccess(true)
+    setPreviewRows([])
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const handleReset = () => {
+    setSelectedPartnerId('')
+    setSelectedCenterId('')
+    setPreviewRows([])
+    setUploadError('')
+    setUploadSuccess(false)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  // Catalog filters
+  const catalogPartners = partners.filter((p) => PARTNER_TYPES.includes(p.partnerType))
+  const catalogCenters = filterPartnerId
+    ? centers.filter((c) => c.partnerId === filterPartnerId)
+    : centers
+
+  const filteredMappings = (testCenterMappings || []).filter((m) => {
+    if (filterPartnerId && m.partnerId !== filterPartnerId) return false
+    if (filterCenterId && m.centerId !== filterCenterId) return false
+    if (catalogSearch) {
+      const q = catalogSearch.toLowerCase()
+      return m.testCode.toLowerCase().includes(q) || m.testName.toLowerCase().includes(q) || m.category.toLowerCase().includes(q)
+    }
+    return true
+  })
+
+  const centerName = (id) => centers.find((c) => c.id === id)?.name || id
+  const partnerName = (id) => partners.find((p) => p.id === id)?.name || id
+  const discount = (pp, cp) => (pp > 0 ? Math.round(((pp - cp) / pp) * 100) : 0)
+
+  const exportMappingsToExcel = () => {
+    if (filteredMappings.length === 0) return
+
+    const exportData = filteredMappings.map((m) => ({
+      'Test Code': m.testCode,
+      'Test Name': m.testName,
+      'Category': m.category,
+      'Partner': partnerName(m.partnerId),
+      'Center': centerName(m.centerId),
+      'Partner Price (₹)': m.partnerPrice,
+      'Center Price (₹)': m.centerPrice,
+      'Discount (%)': discount(m.partnerPrice, m.centerPrice),
+      'Status': m.status,
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(exportData)
+    ws['!cols'] = [
+      { wch: 25 }, // Test Code
+      { wch: 35 }, // Test Name
+      { wch: 18 }, // Category
+      { wch: 25 }, // Partner
+      { wch: 25 }, // Center
+      { wch: 18 }, // Partner Price
+      { wch: 18 }, // Center Price
+      { wch: 15 }, // Discount
+      { wch: 12 }, // Status
+    ]
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Test-Center Mappings')
+
+    const fileName = `test_center_mappings_${new Date().toISOString().split('T')[0]}.xlsx`
+    XLSX.writeFile(wb, fileName)
+  }
+
+  return (
+    <>
+      <header className="main-header">
+        <h2 className="page-title">Test → Center Mapping</h2>
+        <p className="page-desc">Map partner tests to collection centers with center-specific pricing</p>
+      </header>
+      <div className="content">
+        <section className="panel">
+          <div className="panel-tabs">
+        <button className={`panel-tab ${activeTab === 'map' ? 'active' : ''}`} onClick={() => setActiveTab('map')}>Map Tests to Center</button>
+        <button className={`panel-tab ${activeTab === 'catalog' ? 'active' : ''}`} onClick={() => setActiveTab('catalog')}>
+          Mapping Catalog {testCenterMappings?.length ? <span className="tab-badge">{testCenterMappings.length}</span> : null}
+        </button>
+      </div>
+
+      {/* ── MAP TESTS TAB ─────────────────────────────────────── */}
+      {activeTab === 'map' && (
+        <div className="panel-body">
+          {uploadSuccess && (
+            <div className="test-upload-success">
+              ✅ Mapping saved successfully!{' '}
+              <button className="link-btn" onClick={handleReset}>Map another center</button>
+            </div>
+          )}
+
+          {!uploadSuccess && (
+            <>
+              {/* Select Partner */}
+              <div className="form-section">
+                <div className="form-section-title">Partner Selection</div>
+                <div className="enroll-plan-select-wrap">
+                  <label>Partner</label>
+                  <select
+                    className={partnerDropdownHighlight ? 'dropdown-highlight' : ''}
+                    value={selectedPartnerId}
+                    onChange={handlePartnerChange}
+                  >
+                    <option value="">-- Select Partner --</option>
+                    {eligiblePartners.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {getPartnerLabel(p)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {selectedPartner && (
+                  <div
+                    key={selectedPartner.id}
+                    className="enroll-plan-card selected animate-card-change"
+                    style={{ marginTop: '1rem', cursor: 'default', pointerEvents: 'none', alignItems: 'flex-start' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                      <strong style={{ fontSize: '1rem' }}>{selectedPartner.name}</strong>
+                      <span className="badge badge-active">{selectedPartner.partnerType.replace(/_/g, ' ')}</span>
+                    </div>
+                    <div style={{ fontSize: '0.85rem', color: '#666', lineHeight: '1.6' }}>
+                      <div><strong>Contact:</strong> {selectedPartner.contact}</div>
+                      <div><strong>Status:</strong> {selectedPartner.status}</div>
+                      <div><strong>Tests already uploaded:</strong> {tests.filter((t) => t.partnerId === selectedPartner.id).length}</div>
+                      <div><strong>Collection centers:</strong> {centers.filter((c) => c.partnerId === selectedPartner.id).length}</div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Select Collection Center */}
+              {selectedPartnerId && (
+                <div className="form-section">
+                  <div className="form-section-title">Collection Center Selection</div>
+                  {partnerCenters.length === 0 ? (
+                    <p style={{ color: '#888', fontSize: '0.9rem' }}>No collection centers found for <strong>{selectedPartner?.name}</strong>. Add centers first.</p>
+                  ) : (
+                    <>
+                      <div className="enroll-plan-select-wrap">
+                        <label>Collection Center</label>
+                        <select
+                          className={centerDropdownHighlight ? 'dropdown-highlight' : ''}
+                          value={selectedCenterId}
+                          onChange={handleCenterChange}
+                        >
+                          <option value="">-- Select Collection Center --</option>
+                          {partnerCenters.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name} - {c.city}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {selectedCenter && (
+                        <div
+                          key={selectedCenter.id}
+                          className="enroll-plan-card selected animate-card-change"
+                          style={{ marginTop: '1rem', cursor: 'default', pointerEvents: 'none', alignItems: 'flex-start' }}
+                        >
+                          <div style={{ marginBottom: '0.5rem' }}>
+                            <strong style={{ fontSize: '1rem' }}>{selectedCenter.name}</strong>
+                          </div>
+                          <div style={{ fontSize: '0.85rem', color: '#666', lineHeight: '1.6' }}>
+                            <div><strong>City:</strong> {selectedCenter.city}</div>
+                            <div><strong>Address:</strong> {selectedCenter.address}</div>
+                            <div><strong>Slot capacity:</strong> {selectedCenter.slots}</div>
+                            <div><strong>Tests already mapped:</strong> {(testCenterMappings || []).filter((m) => m.centerId === selectedCenter.id).length}</div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Download Template & Upload */}
+              {selectedPartnerId && selectedCenterId && (
+                <div className="form-section">
+                  <div className="form-section-title">Upload Test Prices</div>
+                  {partnerTests.length === 0 ? (
+                    <p style={{ color: '#e57373', fontSize: '0.9rem' }}>No tests uploaded for <strong>{selectedPartner?.name}</strong> yet. Upload tests first via Test Creation.</p>
+                  ) : (
+                    <>
+                      <p style={{ fontSize: '0.88rem', color: '#555', marginBottom: '0.75rem' }}>
+                        Template pre-filled with <strong>{partnerTests.length} tests</strong> from {selectedPartner?.name}. Fill in the <em>Center Price</em> column for <strong>{selectedCenter?.name}</strong>.
+                        <br />
+                        <strong>Note:</strong> If a mapping with the same Test Code already exists for this center, it will be updated with new values (price, status, etc.).
+                      </p>
+                      <button className="btn-secondary" style={{ marginBottom: '1rem' }} onClick={downloadTemplate}>
+                        ⬇ Download Template ({selectedCenter?.name})
+                      </button>
+                      <div
+                        className="enroll-upload-zone"
+                        onClick={() => fileInputRef.current?.click()}
+                        onDrop={handleDrop}
+                        onDragOver={(e) => e.preventDefault()}
+                      >
+                        <div className="enroll-upload-hint">
+                          <span style={{ fontSize: '2rem' }}>📂</span>
+                          <p>Click or drag &amp; drop the filled Excel here</p>
+                          <p style={{ fontSize: '0.78rem', color: '#aaa' }}>.xlsx or .xls files only</p>
+                        </div>
+                        <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleFileChange} />
+                      </div>
+                      {uploadError && <p style={{ color: '#e57373', marginTop: '0.5rem', fontSize: '0.88rem' }}>{uploadError}</p>}
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Preview */}
+          {previewRows.length > 0 && !uploadSuccess && (
+            <div className="form-section">
+              <div className="form-section-title">
+                Preview Mapping | {previewRows.length} rows
+                {previewRows.filter((r) => r.valid && r.centerPrice > 0).length < previewRows.length && (
+                  <span style={{ marginLeft: '0.5rem', fontSize: '0.85rem', color: '#f59e0b', fontWeight: 'normal' }}>
+                    ({previewRows.filter((r) => !r.hasCenterPrice).length} missing center price)
+                  </span>
+                )}
+              </div>
+              {previewRows.some((r) => !r.hasCenterPrice) && (
+                <div style={{ padding: '0.75rem 1rem', background: '#fef9c3', border: '1px solid #fde68a', borderRadius: '8px', color: '#92400e', fontSize: '0.875rem', marginBottom: '1rem' }}>
+                  ⚠ Some rows are missing <strong>Center Price</strong>. Fill in the prices in the Excel file and re-upload, or only rows with prices will be saved.
+                </div>
+              )}
+              <div className="table-wrap" style={{ marginBottom: '1rem' }}>
+                <table className="test-preview-table">
+                  <thead>
+                    <tr>
+                      <th>Test Code</th><th>Test Name</th><th>Category</th>
+                      <th>Partner Price (₹)</th><th>Center Price (₹)</th><th>Discount</th><th>Status</th><th>Valid</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewRows.map((r) => (
+                      <tr
+                        key={r._rowId}
+                        style={{
+                          opacity: r.valid ? 1 : 0.5,
+                          background: !r.hasCenterPrice ? '#fef9c3' : 'transparent'
+                        }}
+                      >
+                        <td><span className="test-code-badge">{r.testCode}</span></td>
+                        <td>{r.testName}</td>
+                        <td>{r.category}</td>
+                        <td>₹{r.partnerPrice}</td>
+                        <td style={{ fontWeight: !r.hasCenterPrice ? 'bold' : 'normal', color: !r.hasCenterPrice ? '#f59e0b' : 'inherit' }}>
+                          {r.hasCenterPrice ? `₹${r.centerPrice}` : '⚠ Missing'}
+                        </td>
+                        <td>
+                          {r.partnerPrice > 0 && r.centerPrice > 0
+                            ? <span className="mapping-discount-badge">{discount(r.partnerPrice, r.centerPrice)}% off</span>
+                            : '—'}
+                        </td>
+                        <td>
+                          <span className={`status-badge ${r.status === 'active' ? 'status-active' : 'status-inactive'}`}>
+                            {r.status?.toUpperCase()}
+                          </span>
+                        </td>
+                        <td>{r.valid ? <span className="badge badge-active">Match ✓</span> : <span className="badge badge-inactive">No match</span>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ marginBottom: '1rem', fontSize: '0.875rem', color: '#666' }}>
+                <strong>Ready to save:</strong> {previewRows.filter((r) => r.valid && r.centerPrice > 0).length} of {previewRows.length} rows
+                {previewRows.filter((r) => !r.valid).length > 0 && (
+                  <span style={{ marginLeft: '0.5rem', color: '#e57373' }}>
+                    ({previewRows.filter((r) => !r.valid).length} invalid test codes will be skipped)
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button className="btn-primary" onClick={handleSave} disabled={!previewRows.some((r) => r.valid && r.centerPrice > 0)}>
+                  Save Mapping ({previewRows.filter((r) => r.valid && r.centerPrice > 0).length} rows)
+                </button>
+                <button className="btn-secondary" onClick={() => { setPreviewRows([]); setUploadError(''); if (fileInputRef.current) fileInputRef.current.value = ''; }}>
+                  Clear
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── MAPPING CATALOG TAB ───────────────────────────────── */}
+      {activeTab === 'catalog' && (
+        <div className="panel-body">
+          <div className="test-catalog-stats" style={{ marginBottom: '1rem' }}>
+            <div className="stat-chip"><span className="stat-num">{(testCenterMappings || []).length}</span><span>Total Mappings</span></div>
+            <div className="stat-chip">
+              <span className="stat-num">
+                {(testCenterMappings || []).length > 0
+                  ? Math.round((testCenterMappings || []).reduce((acc, m) => acc + discount(m.partnerPrice, m.centerPrice), 0) / (testCenterMappings || []).length)
+                  : 0}%
+              </span>
+              <span>Avg Discount</span>
+            </div>
+            <div className="stat-chip"><span className="stat-num">{new Set((testCenterMappings || []).map((m) => m.centerId)).size}</span><span>Centers Covered</span></div>
+            <div className="stat-chip"><span className="stat-num">{new Set((testCenterMappings || []).map((m) => m.partnerId)).size}</span><span>Partners</span></div>
+          </div>
+
+          <div className="test-catalog-filters" style={{ marginBottom: '1rem' }}>
+            <input className="form-input" placeholder="Search test code, name or category…" value={catalogSearch} onChange={(e) => setCatalogSearch(e.target.value)} />
+            <select className="form-select" value={filterPartnerId} onChange={(e) => { setFilterPartnerId(e.target.value); setFilterCenterId(''); }}>
+              <option value="">All Partners</option>
+              {catalogPartners.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <select className="form-select" value={filterCenterId} onChange={(e) => setFilterCenterId(e.target.value)}>
+              <option value="">All Centers</option>
+              {catalogCenters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={exportMappingsToExcel}
+              disabled={filteredMappings.length === 0}
+              title="Export mappings to Excel"
+            >
+              📊 Export to Excel
+            </button>
+          </div>
+
+          {filteredMappings.length === 0 ? (
+            <div className="test-catalog-empty">
+              <span>🗂</span>
+              <p>No mappings found. Use the "Map Tests to Center" tab to upload center pricing.</p>
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table className="test-preview-table">
+                <thead>
+                  <tr>
+                    <th>Test Code</th><th>Test Name</th><th>Category</th>
+                    <th>Partner</th><th>Center</th>
+                    <th>Partner Price</th><th>Center Price</th><th>Discount</th><th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredMappings.map((m) => (
+                    <tr key={m.id}>
+                      <td><span className="test-code-badge">{m.testCode}</span></td>
+                      <td>{m.testName}</td>
+                      <td>{m.category}</td>
+                      <td style={{ fontSize: '0.82rem', color: '#555' }}>{partnerName(m.partnerId)}</td>
+                      <td style={{ fontSize: '0.82rem', color: '#555' }}>{centerName(m.centerId)}</td>
+                      <td>₹{m.partnerPrice}</td>
+                      <td><strong>₹{m.centerPrice}</strong></td>
+                      <td><span className="mapping-discount-badge">{discount(m.partnerPrice, m.centerPrice)}% off</span></td>
+                      <td><span className={`badge badge-${m.status === 'active' ? 'active' : 'inactive'}`}>{m.status}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+        </section>
+      </div>
+    </>
+  )
+}

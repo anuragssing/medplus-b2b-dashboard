@@ -1,0 +1,907 @@
+import { useState, useMemo, useRef, useEffect } from 'react'
+import * as XLSX from 'xlsx'
+import { useDashboardStore } from '../store/dashboardStore.jsx'
+import { useAuth } from '../context/AuthContext'
+import '../App.css'
+
+const RECEIPT_ACCEPT = '.jpg,.jpeg,.png'
+const RECEIPT_HINT = 'Supported: .jpg, .jpeg, .png (image of payment receipt)'
+
+const TOPUP_STATUSES = [
+  { key: 'initiated', label: 'Initiated' },
+  { key: 'payment_done', label: 'Payment Done' },
+  { key: 'payment_verified', label: 'Payment Verified' },
+  { key: 'payment_rejected', label: 'Payment Rejected' },
+  { key: 'cancelled', label: 'Cancelled' },
+]
+
+/** Admin sees only Payment Done, Payment Verified, Payment Rejected */
+const TOPUP_STATUSES_ADMIN = [
+  { key: 'payment_done', label: 'Payment Done' },
+  { key: 'payment_verified', label: 'Payment Verified' },
+  { key: 'payment_rejected', label: 'Payment Rejected' },
+]
+
+const BENEFIT_STATUSES = [
+  { key: 'initiated', label: 'Initiated' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'cancelled', label: 'Cancelled' },
+  { key: 'rejected', label: 'Rejected' },
+]
+
+/** Admin sees only Initiated, Approved, Rejected */
+const BENEFIT_STATUSES_ADMIN = [
+  { key: 'initiated', label: 'Initiated' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'rejected', label: 'Rejected' },
+]
+
+function formatPrice(n) {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(n) || 0)
+}
+
+function formatDate(iso) {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return iso
+  }
+}
+
+function TopUpStatusBadge({ status }) {
+  const s = (status || '').toLowerCase()
+  let cls = 'request-status request-status-initiated'
+  if (s === 'payment_done') cls = 'request-status request-status-payment-done'
+  else if (s === 'payment_verified') cls = 'request-status request-status-verified'
+  else if (s === 'payment_rejected' || s === 'cancelled') cls = 'request-status request-status-rejected'
+  const label = (status || 'Initiated').replace(/_/g, ' ').toUpperCase()
+  return <span className={cls}>{label}</span>
+}
+
+function BenefitStatusBadge({ status }) {
+  const s = (status || '').toLowerCase()
+  let cls = 'request-status request-status-initiated'
+  if (s === 'approved') cls = 'request-status request-status-verified'
+  else if (s === 'rejected' || s === 'cancelled') cls = 'request-status request-status-rejected'
+  const label = (status || 'Initiated').toUpperCase()
+  return <span className={cls}>{label}</span>
+}
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50]
+
+function triggerDownload(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function rowsToXlsxBlob(rows) {
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
+  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+  return new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+}
+
+function ensureXlsxFilename(name, fallback) {
+  if (name && /\.xlsx$/i.test(name)) return name
+  const base = (name && name.replace(/\.[^.]+$/, '')) || fallback
+  return (base || 'document') + '.xlsx'
+}
+
+const PHARMA_CODE_HEADER = 'Pharmacy Subscription Code'
+const HEALTHCARE_CODE_HEADER = 'Health Care Subscription Code'
+
+function parseUploadedEnrollmentSheet(dataUrl) {
+  try {
+    if (!dataUrl || !dataUrl.startsWith('data:')) return null
+    const base64 = dataUrl.replace(/^data:[^;]+;base64,/, '')
+    if (!base64) return null
+    const binary = atob(base64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    const wb = XLSX.read(bytes.buffer, { type: 'array' })
+    const sheetName = wb.SheetNames[0]
+    if (!sheetName) return null
+    const sheet = wb.Sheets[sheetName]
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' })
+    if (!rows.length) return null
+    return rows
+  } catch {
+    return null
+  }
+}
+
+/** Parse uploaded enrollment Excel and return customer (Member Full Name) and mobileNo (Contact Number) from first data row. */
+function parseEnrollmentUploadForCustomer(dataUrl) {
+  const rows = parseUploadedEnrollmentSheet(dataUrl)
+  if (!rows || rows.length < 2) return { customer: 'Enrolled', mobileNo: '' }
+  const headers = (rows[0] || []).map((h) => String(h || '').trim())
+  const col = (name) => headers.findIndex((h) => String(h).toLowerCase() === String(name).toLowerCase())
+  const nameCol = col('Member Full Name')
+  const contactCol = col('Contact Number')
+  const dataRows = rows.slice(1).filter((row) => row.some((cell) => cell != null && String(cell).trim() !== ''))
+  const firstRow = dataRows[0]
+  if (!firstRow) return { customer: 'Enrolled', mobileNo: '' }
+  const customer = nameCol >= 0 ? String(firstRow[nameCol] ?? '').trim() || 'Enrolled' : 'Enrolled'
+  const mobileNo = contactCol >= 0 ? String(firstRow[contactCol] ?? '').trim() : ''
+  return { customer, mobileNo }
+}
+
+/** Build response XLSX: same data as upload with Pharmacy Subscription Code and Health Care Subscription Code filled. Returns data URL. */
+function buildEnrollmentResponseFile(dataUrl, pharmaCode, healthCareCode) {
+  const rows = parseUploadedEnrollmentSheet(dataUrl)
+  if (!rows || !rows.length) return null
+  const headers = (rows[0] || []).map((h) => String(h || '').trim())
+  const colIndex = (name) => headers.findIndex((h) => String(h).toLowerCase() === String(name).toLowerCase())
+  let pharmaCol = colIndex(PHARMA_CODE_HEADER)
+  let healthCol = colIndex(HEALTHCARE_CODE_HEADER)
+  if (pharmaCol < 0) {
+    headers.push(PHARMA_CODE_HEADER)
+    pharmaCol = headers.length - 1
+  }
+  if (healthCol < 0) {
+    headers.push(HEALTHCARE_CODE_HEADER)
+    healthCol = headers.length - 1
+  }
+  const outRows = [headers]
+  for (let i = 1; i < rows.length; i++) {
+    const row = [...(rows[i] || [])]
+    while (row.length <= Math.max(pharmaCol, healthCol)) row.push('')
+    row[pharmaCol] = pharmaCode != null && pharmaCode !== '' ? pharmaCode : (row[pharmaCol] ?? '')
+    row[healthCol] = healthCareCode != null && healthCareCode !== '' ? healthCareCode : (row[healthCol] ?? '')
+    outRows.push(row)
+  }
+  const ws = XLSX.utils.aoa_to_sheet(outRows)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Enrollment Response')
+  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+  const b64 = btoa(String.fromCharCode.apply(null, new Uint8Array(out)))
+  return `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${b64}`
+}
+
+export default function RequestDashboard() {
+  const { user } = useAuth()
+  const { topUpRequests = [], benefitRequests = [], subscriptionRecords = [], partners = [], benefits = [], cancelTopUpRequest, updateTopUpRequestStatus, updateBenefitRequestStatus, addSubscriptionRecords } = useDashboardStore()
+
+  const isAdmin = user?.type === 'bd_admin'
+  const isHr = user?.type === 'hr'
+  const organizationId = isHr ? user?.organizationId : null
+  const getOrgName = (orgId) => (orgId ? partners.find((p) => p.id === orgId)?.name ?? orgId : '—')
+
+  const [mainTab, setMainTab] = useState('topup') // 'topup' | 'benefit'
+  const [topUpStatusFilter, setTopUpStatusFilter] = useState('initiated')
+  const [benefitStatusFilter, setBenefitStatusFilter] = useState('initiated')
+  const [topUpPage, setTopUpPage] = useState(1)
+  const [benefitPage, setBenefitPage] = useState(1)
+  const [topUpPageSize, setTopUpPageSize] = useState(25)
+  const [benefitPageSize, setBenefitPageSize] = useState(25)
+
+  const [confirmModal, setConfirmModal] = useState({ show: false, title: '', message: '', onConfirm: null })
+  const [uploadModalRequestId, setUploadModalRequestId] = useState(null)
+  const [uploadTransactionId, setUploadTransactionId] = useState('')
+  const [uploadReceiptFile, setUploadReceiptFile] = useState(null)
+  const uploadFileInputRef = useRef(null)
+  const [rejectTopUpId, setRejectTopUpId] = useState(null)
+  const [rejectRemarks, setRejectRemarks] = useState('')
+  const [memberInfoRequest, setMemberInfoRequest] = useState(null)
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState(null)
+  const [cancelTopUpId, setCancelTopUpId] = useState(null)
+  const [cancelTopUpRemarks, setCancelTopUpRemarks] = useState('')
+  const [rejectBenefitId, setRejectBenefitId] = useState(null)
+  const [rejectBenefitRemarks, setRejectBenefitRemarks] = useState('')
+  const [cancelBenefitId, setCancelBenefitId] = useState(null)
+  const [cancelBenefitRemarks, setCancelBenefitRemarks] = useState('')
+
+  const topUpStatusesToShow = isAdmin ? TOPUP_STATUSES_ADMIN : TOPUP_STATUSES
+  const benefitStatusesToShow = isAdmin ? BENEFIT_STATUSES_ADMIN : BENEFIT_STATUSES
+
+  useEffect(() => {
+    if (isAdmin && !topUpStatusesToShow.some((s) => s.key === topUpStatusFilter)) {
+      setTopUpStatusFilter(topUpStatusesToShow[0].key)
+    }
+  }, [isAdmin, topUpStatusFilter, topUpStatusesToShow])
+  useEffect(() => {
+    if (isAdmin && !benefitStatusesToShow.some((s) => s.key === benefitStatusFilter)) {
+      setBenefitStatusFilter(benefitStatusesToShow[0].key)
+    }
+  }, [isAdmin, benefitStatusFilter, benefitStatusesToShow])
+
+  const topUpForRole = useMemo(() => {
+    if (isHr && organizationId) {
+      return topUpRequests.filter((r) => r.organizationId === organizationId)
+    }
+    return topUpRequests
+  }, [topUpRequests, isHr, organizationId])
+
+  const benefitForRole = useMemo(() => {
+    if (isHr && organizationId) {
+      return benefitRequests.filter((r) => r.organizationId === organizationId)
+    }
+    return benefitRequests
+  }, [benefitRequests, isHr, organizationId])
+
+  const filteredTopUp = useMemo(() => {
+    return topUpForRole.filter((r) => (r.status || 'initiated') === topUpStatusFilter)
+  }, [topUpForRole, topUpStatusFilter])
+
+  const filteredBenefit = useMemo(() => {
+    return benefitForRole.filter((r) => (r.status || 'initiated') === benefitStatusFilter)
+  }, [benefitForRole, benefitStatusFilter])
+
+  const topUpCounts = useMemo(() => {
+    const counts = {}
+    TOPUP_STATUSES.forEach(({ key }) => {
+      counts[key] = topUpForRole.filter((r) => (r.status || 'initiated') === key).length
+    })
+    return counts
+  }, [topUpForRole])
+
+  const benefitCounts = useMemo(() => {
+    const counts = {}
+    BENEFIT_STATUSES.forEach(({ key }) => {
+      counts[key] = benefitForRole.filter((r) => (r.status || 'initiated') === key).length
+    })
+    return counts
+  }, [benefitForRole])
+
+  const topUpPaged = useMemo(() => {
+    const start = (topUpPage - 1) * topUpPageSize
+    return filteredTopUp.slice(start, start + topUpPageSize)
+  }, [filteredTopUp, topUpPage, topUpPageSize])
+
+  const benefitPaged = useMemo(() => {
+    const start = (benefitPage - 1) * benefitPageSize
+    return filteredBenefit.slice(start, start + benefitPageSize)
+  }, [filteredBenefit, benefitPage, benefitPageSize])
+
+  const topUpTotalPages = Math.max(1, Math.ceil(filteredTopUp.length / topUpPageSize))
+  const benefitTotalPages = Math.max(1, Math.ceil(filteredBenefit.length / benefitPageSize))
+
+  const showConfirm = (title, message, onConfirm) => {
+    setConfirmModal({ show: true, title, message, onConfirm })
+  }
+
+  const closeConfirm = () => {
+    setConfirmModal({ show: false, title: '', message: '', onConfirm: null })
+  }
+
+  const handleConfirmAction = () => {
+    if (confirmModal.onConfirm) confirmModal.onConfirm()
+    closeConfirm()
+  }
+
+  const handleApproveTopUp = (id) => {
+    showConfirm('Approve Top-Up Request', 'Are you sure you want to approve this top-up request? It will be moved to Payment Verified.', () => {
+      updateTopUpRequestStatus(id, {
+        status: 'payment_verified',
+        verifiedBy: user?.name || user?.username || '—',
+        verifiedDate: new Date().toISOString(),
+      })
+    })
+  }
+
+  const openRejectTopUpModal = (id) => {
+    setRejectTopUpId(id)
+    setRejectRemarks('')
+  }
+
+  const closeRejectTopUpModal = () => {
+    setRejectTopUpId(null)
+    setRejectRemarks('')
+  }
+
+  const handleRejectTopUpConfirm = () => {
+    if (!rejectTopUpId) return
+    updateTopUpRequestStatus(rejectTopUpId, {
+      status: 'payment_rejected',
+      verifiedBy: user?.name || user?.username || '—',
+      verifiedDate: new Date().toISOString(),
+      remarks: rejectRemarks.trim() || 'Rejected by admin',
+    })
+    closeRejectTopUpModal()
+  }
+
+  const handleRejectTopUp = (id) => {
+    showConfirm('Reject Top-Up Request', 'Are you sure you want to reject this top-up request?', () => {
+      updateTopUpRequestStatus(id, {
+        status: 'payment_rejected',
+        verifiedBy: user?.name || user?.username || '—',
+        verifiedDate: new Date().toISOString(),
+        remarks: 'Rejected by admin',
+      })
+    })
+  }
+
+  const openCancelTopUpModal = (id) => {
+    setCancelTopUpId(id)
+    setCancelTopUpRemarks('')
+  }
+  const closeCancelTopUpModal = () => {
+    setCancelTopUpId(null)
+    setCancelTopUpRemarks('')
+  }
+  const handleCancelTopUpConfirm = () => {
+    if (!cancelTopUpId) return
+    updateTopUpRequestStatus(cancelTopUpId, { status: 'cancelled', remarks: cancelTopUpRemarks.trim() || 'Cancelled by HR' })
+    closeCancelTopUpModal()
+  }
+
+  const handleCancelTopUp = (id) => {
+    openCancelTopUpModal(id)
+  }
+
+  const openUploadModal = (id) => {
+    setUploadModalRequestId(id)
+    setUploadTransactionId('')
+    setUploadReceiptFile(null)
+    if (uploadFileInputRef.current) uploadFileInputRef.current.value = ''
+  }
+
+  const closeUploadModal = () => {
+    setUploadModalRequestId(null)
+    setUploadTransactionId('')
+    setUploadReceiptFile(null)
+  }
+
+  const handleUploadSubmit = () => {
+    if (!uploadModalRequestId) return
+    const tid = uploadTransactionId.trim()
+    if (!tid) {
+      alert('Please enter Transaction ID.')
+      return
+    }
+    if (!uploadReceiptFile) {
+      alert('Please select a payment receipt image.')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      updateTopUpRequestStatus(uploadModalRequestId, {
+        paymentTransactionId: tid,
+        paymentReceipt: e.target?.result || '',
+        status: 'payment_done',
+      })
+      closeUploadModal()
+    }
+    reader.readAsDataURL(uploadReceiptFile)
+  }
+
+  const handleApproveBenefit = (id) => {
+    const request = benefitRequests.find((r) => r.id === id)
+    const benefit = request ? benefits.find((b) => b.id === request.planId) : null
+    const { customer, mobileNo } = parseEnrollmentUploadForCustomer(request?.uploadedDocumentContent)
+    const maxSubId = Math.max(0, ...(subscriptionRecords || []).map((r) => Number(r.subscriptionId) || 0))
+    let pharmaCode = ''
+    let healthCareCode = ''
+
+    if (benefit?.type === 'combo' && benefit.comboPharmaBenefitId && benefit.comboHealthCareBenefitId) {
+      const pharmaBenefit = benefits.find((b) => b.id === benefit.comboPharmaBenefitId)
+      const healthCareBenefit = benefits.find((b) => b.id === benefit.comboHealthCareBenefitId)
+      const clientId = benefit.clientId || ''
+      const today = new Date().toISOString().slice(0, 10)
+      const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      pharmaCode = String(maxSubId + 1)
+      healthCareCode = String(maxSubId + 2)
+      addSubscriptionRecords([
+        { clientId, type: 'pharma', planId: pharmaBenefit?.id, planName: pharmaBenefit?.name || 'Pharma', createdOn: today, activedOn: today, expiryDate: expiry, customer, mobileNo, subscriptionId: pharmaCode },
+        { clientId, type: 'healthcare', planId: healthCareBenefit?.id, planName: healthCareBenefit?.name || 'Health Care', createdOn: today, activedOn: today, expiryDate: expiry, customer, mobileNo, subscriptionId: healthCareCode },
+      ])
+    } else if (benefit && benefit.type !== 'combo') {
+      const clientId = benefit.clientId || ''
+      const today = new Date().toISOString().slice(0, 10)
+      const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      const type = benefit.type === 'pharma' ? 'pharma' : 'healthcare'
+      const singleCode = String(maxSubId + 1)
+      if (type === 'pharma') pharmaCode = singleCode
+      else healthCareCode = singleCode
+      addSubscriptionRecords([
+        { clientId, type, planId: benefit.id, planName: benefit.name || '', createdOn: today, activedOn: today, expiryDate: expiry, customer, mobileNo, subscriptionId: singleCode },
+      ])
+    }
+
+    const responseDataUrl = buildEnrollmentResponseFile(request?.uploadedDocumentContent, pharmaCode, healthCareCode)
+    updateBenefitRequestStatus(id, {
+      status: 'approved',
+      modifiedBy: user?.name || user?.username || '—',
+      modifiedDate: new Date().toISOString(),
+      responseDocument: request?.uploadedDocumentName ? request.uploadedDocumentName.replace(/\.[^.]+$/, '_response.xlsx') || 'enrollment_response.xlsx' : 'enrollment_response.xlsx',
+      responseDocumentContent: responseDataUrl || undefined,
+    })
+  }
+
+  const openRejectBenefitModal = (id) => {
+    setRejectBenefitId(id)
+    setRejectBenefitRemarks('')
+  }
+  const closeRejectBenefitModal = () => {
+    setRejectBenefitId(null)
+    setRejectBenefitRemarks('')
+  }
+  const handleRejectBenefitConfirm = () => {
+    if (!rejectBenefitId) return
+    updateBenefitRequestStatus(rejectBenefitId, {
+      status: 'rejected',
+      modifiedBy: user?.name || user?.username || '—',
+      modifiedDate: new Date().toISOString(),
+      remarks: rejectBenefitRemarks.trim() || 'Rejected by admin',
+    })
+    closeRejectBenefitModal()
+  }
+
+  const openCancelBenefitModal = (id) => {
+    setCancelBenefitId(id)
+    setCancelBenefitRemarks('')
+  }
+  const closeCancelBenefitModal = () => {
+    setCancelBenefitId(null)
+    setCancelBenefitRemarks('')
+  }
+  const handleCancelBenefitConfirm = () => {
+    if (!cancelBenefitId) return
+    updateBenefitRequestStatus(cancelBenefitId, {
+      status: 'cancelled',
+      remarks: cancelBenefitRemarks.trim() || 'Cancelled by HR',
+    })
+    closeCancelBenefitModal()
+  }
+
+  const downloadUploadedDocument = (r) => {
+    if (!r.uploadedDocumentName && !r.uploadedDocumentContent) return
+    if (r.uploadedDocumentContent && r.uploadedDocumentContent.startsWith('data:')) {
+      const a = document.createElement('a')
+      a.href = r.uploadedDocumentContent
+      a.download = ensureXlsxFilename(r.uploadedDocumentName, `enrollment_request_${r.id}_uploaded`)
+      a.click()
+      return
+    }
+    const rows = [
+      ['Request Id', 'Plan Id', 'Plan Name', 'Total Price', 'Uploaded Document Name', 'Status', 'Created At'],
+      [r.id, r.planId, r.planName, r.totalPrice, r.uploadedDocumentName || '', r.status || '', r.createdAt || ''],
+    ]
+    const filename = ensureXlsxFilename(r.uploadedDocumentName, `request_${r.id}_uploaded`)
+    triggerDownload(rowsToXlsxBlob(rows), filename)
+  }
+
+  const downloadResponseDocument = (r) => {
+    if (r.responseDocumentContent && r.responseDocumentContent.startsWith('data:')) {
+      const a = document.createElement('a')
+      a.href = r.responseDocumentContent
+      a.download = ensureXlsxFilename(r.responseDocument, `request_${r.id}_response`)
+      a.click()
+      return
+    }
+    if (!r.responseDocument && r.status !== 'approved' && r.status !== 'rejected') return
+    const rows = [
+      ['Request Id', 'Plan Id', 'Plan Name', 'Status', 'Modified By', 'Modified Date', 'Remarks'],
+      [r.id, r.planId, r.planName, r.status || '', r.modifiedBy || '', r.modifiedDate || '', r.remarks || ''],
+    ]
+    const filename = ensureXlsxFilename(r.responseDocument, `request_${r.id}_response`)
+    triggerDownload(rowsToXlsxBlob(rows), filename)
+  }
+
+  return (
+    <>
+      <header className="main-header">
+        <h2 className="page-title">Request Dashboard</h2>
+        {isAdmin && (
+          <p className="page-desc" style={{ marginBottom: '0.25rem' }}>
+            Viewing requests for all organizations. Each row shows the organization (ID and name) for the action.
+          </p>
+        )}
+        <p className="page-desc">View and manage top-up requests (from Price Calculator) and enrollment requests (from Enroll Employee).</p>
+      </header>
+      <div className="content">
+        <section className="panel request-dashboard-panel">
+          <div className="panel-tabs request-dashboard-main-tabs">
+            <button type="button" className={`panel-tab ${mainTab === 'topup' ? 'active' : ''}`} onClick={() => setMainTab('topup')}>Top-Up Request</button>
+            <button type="button" className={`panel-tab ${mainTab === 'benefit' ? 'active' : ''}`} onClick={() => setMainTab('benefit')}>Enrollment Request</button>
+          </div>
+
+          {mainTab === 'topup' && (
+            <>
+              <div className="request-status-filters">
+                {topUpStatusesToShow.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`request-status-pill ${topUpStatusFilter === key ? 'active' : ''}`}
+                    onClick={() => { setTopUpStatusFilter(key); setTopUpPage(1) }}
+                  >
+                    {label}
+                    <span className="request-status-count">{topUpCounts[key] ?? 0}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="table-wrap">
+                <table className="request-table">
+                  <thead>
+                    <tr>
+                      <th>Top-Up Request Id</th>
+                      {isAdmin && <th>Organization</th>}
+                      <th>Total Members</th>
+                      <th>Estimated Price</th>
+                      <th>Member Info</th>
+                      <th>Status</th>
+                      {(topUpStatusFilter === 'payment_done' || topUpStatusFilter === 'payment_verified' || topUpStatusFilter === 'payment_rejected') && (
+                        <>
+                          <th>Payment Transaction Id</th>
+                          <th>Payment Receipt</th>
+                          {(topUpStatusFilter === 'payment_verified' || topUpStatusFilter === 'payment_rejected') && <th>Verified By</th>}
+                          {(topUpStatusFilter === 'payment_verified' || topUpStatusFilter === 'payment_rejected') && <th>Verified Date</th>}
+                          {topUpStatusFilter === 'payment_rejected' && <th>Remarks</th>}
+                          {isAdmin && topUpStatusFilter === 'payment_done' && <th>Action</th>}
+                        </>
+                      )}
+                      {topUpStatusFilter === 'cancelled' && <th>Remarks</th>}
+                      {topUpStatusFilter === 'initiated' && <th>Action</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topUpPaged.length === 0 ? (
+                      <tr><td colSpan={isAdmin ? 11 : 10} className="request-table-empty">No requests in this status.</td></tr>
+                    ) : (
+                      topUpPaged.map((r) => (
+                        <tr key={r.id}>
+                          <td>{r.id}</td>
+                          {isAdmin && <td title={`ID: ${r.organizationId || '—'}`}>{getOrgName(r.organizationId)} {r.organizationId && <span style={{ color: 'var(--text-muted, #666)', fontSize: '0.85em' }}>({r.organizationId})</span>}</td>}
+                          <td>{r.totalMembers}</td>
+                          <td>{formatPrice(r.estimatedPrice)}</td>
+                          <td><button type="button" className="request-link-icon" title="Member Info" onClick={() => setMemberInfoRequest(r)}>📄</button></td>
+                          <td><TopUpStatusBadge status={r.status} /></td>
+                          {(topUpStatusFilter === 'payment_done' || topUpStatusFilter === 'payment_verified' || topUpStatusFilter === 'payment_rejected') && (
+                            <>
+                              <td>{r.paymentTransactionId || '—'}</td>
+                              <td>{r.paymentReceipt ? (r.paymentReceipt.startsWith('data:') ? <button type="button" className="request-link" onClick={() => setReceiptPreviewUrl(r.paymentReceipt)}>View Receipt</button> : <span>{r.paymentReceipt}</span>) : '—'}</td>
+                              {(topUpStatusFilter === 'payment_verified' || topUpStatusFilter === 'payment_rejected') && <td>{r.verifiedBy || '—'}</td>}
+                              {(topUpStatusFilter === 'payment_verified' || topUpStatusFilter === 'payment_rejected') && <td>{formatDate(r.verifiedDate)}</td>}
+                              {topUpStatusFilter === 'payment_rejected' && <td>{r.remarks || '—'}</td>}
+                              {isAdmin && topUpStatusFilter === 'payment_done' && (
+                                <td>
+                                  <button type="button" className="request-action-btn request-action-approve" title="Approve" onClick={() => handleApproveTopUp(r.id)}>✓</button>
+                                  <button type="button" className="request-action-btn request-action-cancel" title="Reject" onClick={() => openRejectTopUpModal(r.id)}>✕</button>
+                                </td>
+                              )}
+                            </>
+                          )}
+                          {topUpStatusFilter === 'cancelled' && <td>{r.remarks || '—'}</td>}
+                          {topUpStatusFilter === 'initiated' && (
+                            <td>
+                              {isAdmin && (
+                                <>
+                                  <button type="button" className="request-action-btn request-action-approve" title="Approve" onClick={() => handleApproveTopUp(r.id)}>✓</button>
+                                  <button type="button" className="request-action-btn request-action-cancel" title="Reject" onClick={() => handleRejectTopUp(r.id)}>✕</button>
+                                </>
+                              )}
+                              {isHr && (
+                                <>
+                                  <button type="button" className="request-action-btn request-action-upload" title="Upload payment receipt" onClick={() => openUploadModal(r.id)}>📤</button>
+                                  <button type="button" className="request-action-btn request-action-cancel" title="Cancel" onClick={() => openCancelTopUpModal(r.id)}>✕</button>
+                                </>
+                              )}
+                              {!isAdmin && !isHr && <span className="request-no-actions">—</span>}
+                            </td>
+                          )}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="request-pagination">
+                <div className="request-pagination-nav">
+                  <button type="button" disabled={topUpPage <= 1} onClick={() => setTopUpPage(1)}>« First</button>
+                  <button type="button" disabled={topUpPage <= 1} onClick={() => setTopUpPage((p) => p - 1)}>‹ Previous</button>
+                  <span className="request-pagination-current">{topUpPage}</span>
+                  <button type="button" disabled={topUpPage >= topUpTotalPages} onClick={() => setTopUpPage((p) => p + 1)}>Next ›</button>
+                  <button type="button" disabled={topUpPage >= topUpTotalPages} onClick={() => setTopUpPage(topUpTotalPages)}>Last »</button>
+                </div>
+                <span className="request-pagination-info">
+                  Showing {filteredTopUp.length === 0 ? 0 : (topUpPage - 1) * topUpPageSize + 1} to {Math.min(topUpPage * topUpPageSize, filteredTopUp.length)} Of {filteredTopUp.length} Records
+                </span>
+                <label className="request-pagination-size">
+                  Records Per Page
+                  <select value={topUpPageSize} onChange={(e) => { setTopUpPageSize(Number(e.target.value)); setTopUpPage(1) }}>
+                    {PAGE_SIZE_OPTIONS.map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </>
+          )}
+
+          {mainTab === 'benefit' && (
+            <>
+              <div className="request-status-filters">
+                {benefitStatusesToShow.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`request-status-pill ${benefitStatusFilter === key ? 'active' : ''}`}
+                    onClick={() => { setBenefitStatusFilter(key); setBenefitPage(1) }}
+                  >
+                    {label}
+                    <span className="request-status-count">{benefitCounts[key] ?? 0}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="table-wrap">
+                <table className="request-table">
+                  <thead>
+                    <tr>
+                      <th>Subscription Request Id</th>
+                      {isAdmin && <th>Organization</th>}
+                      <th>PlanId</th>
+                      <th>Total Price</th>
+                      <th>Uploaded Document</th>
+                      <th>Status</th>
+                      {(benefitStatusFilter === 'approved' || benefitStatusFilter === 'rejected') && (
+                        <>
+                          <th>Response Document</th>
+                          <th>Modified By</th>
+                          <th>Modified Date</th>
+                          {benefitStatusFilter === 'rejected' && <th>Remarks</th>}
+                        </>
+                      )}
+                      {benefitStatusFilter === 'initiated' && <th>Action</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {benefitPaged.length === 0 ? (
+                      <tr><td colSpan={isAdmin ? 11 : 10} className="request-table-empty">No requests in this status.</td></tr>
+                    ) : (
+                      benefitPaged.map((r) => (
+                        <tr key={r.id}>
+                          <td>{r.id}</td>
+                          {isAdmin && <td title={`ID: ${r.organizationId || '—'}`}>{getOrgName(r.organizationId)} {r.organizationId && <span style={{ color: 'var(--text-muted, #666)', fontSize: '0.85em' }}>({r.organizationId})</span>}</td>}
+                          <td>{r.planId}</td>
+                          <td>{formatPrice(r.totalPrice)}</td>
+                          <td>{(r.uploadedDocumentName || r.uploadedDocumentContent) ? <button type="button" className="request-link" onClick={() => downloadUploadedDocument(r)}>Download XLSX Document</button> : '—'}</td>
+                          <td><BenefitStatusBadge status={r.status} /></td>
+                          {(benefitStatusFilter === 'approved' || benefitStatusFilter === 'rejected') && (
+                            <>
+                              <td>{(r.responseDocument || r.responseDocumentContent || r.status === 'approved' || r.status === 'rejected') ? <button type="button" className="request-link" onClick={() => downloadResponseDocument(r)}>Download Response Document</button> : '—'}</td>
+                              <td>{r.modifiedBy || '—'}</td>
+                              <td>{formatDate(r.modifiedDate)}</td>
+                              {benefitStatusFilter === 'rejected' && <td>{r.remarks || '—'}</td>}
+                            </>
+                          )}
+                          {benefitStatusFilter === 'initiated' && (
+                            <td>
+                              {isAdmin && (
+                                <>
+                                  <button type="button" className="request-action-btn request-action-approve" title="Approve" onClick={() => handleApproveBenefit(r.id)}>✓</button>
+                                  <button type="button" className="request-action-btn request-action-cancel" title="Reject" onClick={() => openRejectBenefitModal(r.id)}>✕</button>
+                                </>
+                              )}
+                              {isHr && (
+                                <button type="button" className="request-action-btn request-action-cancel" title="Cancel" onClick={() => openCancelBenefitModal(r.id)}>✕</button>
+                              )}
+                              {!isAdmin && !isHr && <span className="request-no-actions">—</span>}
+                            </td>
+                          )}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="request-pagination">
+                <div className="request-pagination-nav">
+                  <button type="button" disabled={benefitPage <= 1} onClick={() => setBenefitPage(1)}>« First</button>
+                  <button type="button" disabled={benefitPage <= 1} onClick={() => setBenefitPage((p) => p - 1)}>‹ Previous</button>
+                  <span className="request-pagination-current">{benefitPage}</span>
+                  <button type="button" disabled={benefitPage >= benefitTotalPages} onClick={() => setBenefitPage((p) => p + 1)}>Next ›</button>
+                  <button type="button" disabled={benefitPage >= benefitTotalPages} onClick={() => setBenefitPage(benefitTotalPages)}>Last »</button>
+                </div>
+                <span className="request-pagination-info">
+                  Showing {filteredBenefit.length === 0 ? 0 : (benefitPage - 1) * benefitPageSize + 1} to {Math.min(benefitPage * benefitPageSize, filteredBenefit.length)} Of {filteredBenefit.length} Records
+                </span>
+                <label className="request-pagination-size">
+                  Records Per Page
+                  <select value={benefitPageSize} onChange={(e) => { setBenefitPageSize(Number(e.target.value)); setBenefitPage(1) }}>
+                    {PAGE_SIZE_OPTIONS.map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </>
+          )}
+        </section>
+      </div>
+
+      {confirmModal.show && (
+        <div className="modal-overlay" onClick={closeConfirm} role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+          <div className="modal modal-confirm" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h3 id="confirm-title">{confirmModal.title}</h3>
+              <button type="button" className="modal-close" onClick={closeConfirm} aria-label="Close">×</button>
+            </div>
+            <p className="modal-message">{confirmModal.message}</p>
+            <div className="form-actions">
+              <button type="button" className="btn-secondary" onClick={closeConfirm}>Cancel</button>
+              <button type="button" className="btn-primary" onClick={handleConfirmAction}>Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rejectTopUpId && (
+        <div className="modal-overlay" onClick={closeRejectTopUpModal} role="dialog" aria-modal="true" aria-labelledby="reject-topup-title">
+          <div className="modal modal-confirm" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h3 id="reject-topup-title">Reject Top-Up Request</h3>
+              <button type="button" className="modal-close" onClick={closeRejectTopUpModal} aria-label="Close">×</button>
+            </div>
+            <p className="modal-message">Are you sure you want to reject this top-up request? You can add a reason below (optional).</p>
+            <label className="form-label-block" style={{ marginBottom: '1rem' }}>
+              Rejection reason (optional)
+              <textarea rows={3} value={rejectRemarks} onChange={(e) => setRejectRemarks(e.target.value)} placeholder="e.g. Invalid payment details" className="form-input" autoComplete="off" />
+            </label>
+            <div className="form-actions">
+              <button type="button" className="btn-secondary" onClick={closeRejectTopUpModal}>Cancel</button>
+              <button type="button" className="btn-primary btn-primary-red" onClick={handleRejectTopUpConfirm}>Confirm Reject</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {uploadModalRequestId && (
+        <div className="modal-overlay" onClick={closeUploadModal} role="dialog" aria-modal="true" aria-labelledby="upload-details-title">
+          <div className="modal modal-upload-details" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h3 id="upload-details-title">Upload Details</h3>
+              <button type="button" className="modal-close" onClick={closeUploadModal} aria-label="Close">×</button>
+            </div>
+            <label className="form-label-block">
+              Enter Transaction ID
+              <input
+                type="text"
+                placeholder="Enter Transaction ID"
+                value={uploadTransactionId}
+                onChange={(e) => setUploadTransactionId(e.target.value)}
+                className="modal-input"
+                autoComplete="off"
+              />
+            </label>
+            <div className="upload-details-browse">
+              <button type="button" className="btn-secondary" onClick={() => uploadFileInputRef.current?.click()}>
+                📄 Browse
+              </button>
+              <input
+                ref={uploadFileInputRef}
+                type="file"
+                accept={RECEIPT_ACCEPT}
+                onChange={(e) => setUploadReceiptFile(e.target.files?.[0] || null)}
+                style={{ display: 'none' }}
+              />
+              <p className="upload-details-hint">{RECEIPT_HINT}</p>
+              {uploadReceiptFile && <p className="upload-details-filename">{uploadReceiptFile.name}</p>}
+            </div>
+            <div className="form-actions">
+              <button type="button" className="btn-secondary" onClick={closeUploadModal}>Close</button>
+              <button type="button" className="btn-primary" onClick={handleUploadSubmit}>Submit</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {memberInfoRequest && (
+        <div className="modal-overlay" onClick={() => setMemberInfoRequest(null)} role="dialog" aria-modal="true" aria-labelledby="member-info-title">
+          <div className="modal modal-confirm" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h3 id="member-info-title">Member Details</h3>
+              <button type="button" className="modal-close" onClick={() => setMemberInfoRequest(null)} aria-label="Close">×</button>
+            </div>
+            <p className="modal-message">Request #{memberInfoRequest.id} — Total members: {memberInfoRequest.totalMembers}</p>
+            <div className="table-wrap">
+              <table className="request-table">
+                <thead>
+                  <tr><th>Plan Name</th><th>Primary</th><th>Free Add-on</th><th>Price Add-on</th></tr>
+                </thead>
+                <tbody>
+                  {(memberInfoRequest.memberDetails || []).length > 0 ? (memberInfoRequest.memberDetails || []).map((row, i) => (
+                    <tr key={i}>
+                      <td><strong>{row.planName}</strong></td>
+                      <td>{row.primaryCount ?? 0}</td>
+                      <td>{row.freeAddonCount ?? 0}</td>
+                      <td>{row.addonCount ?? 0}</td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan={4} className="request-table-empty">No member breakdown available.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="form-actions">
+              <button type="button" className="btn-primary" onClick={() => setMemberInfoRequest(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {receiptPreviewUrl && (
+        <div className="modal-overlay" onClick={() => setReceiptPreviewUrl(null)} role="dialog" aria-modal="true" aria-labelledby="receipt-preview-title">
+          <div className="modal modal-receipt-preview" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h3 id="receipt-preview-title">Payment Receipt</h3>
+              <button type="button" className="modal-close" onClick={() => setReceiptPreviewUrl(null)} aria-label="Close">×</button>
+            </div>
+            <div style={{ maxWidth: '100%', maxHeight: '70vh', overflow: 'auto', background: '#f8fafc', padding: '0.5rem' }}>
+              <img src={receiptPreviewUrl} alt="Payment receipt" style={{ maxWidth: '100%', height: 'auto', display: 'block' }} />
+            </div>
+            <div className="form-actions">
+              <button type="button" className="btn-primary" onClick={() => setReceiptPreviewUrl(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelTopUpId && (
+        <div className="modal-overlay" onClick={closeCancelTopUpModal} role="dialog" aria-modal="true" aria-labelledby="cancel-topup-title">
+          <div className="modal modal-confirm" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h3 id="cancel-topup-title">Cancel Top-Up Request</h3>
+              <button type="button" className="modal-close" onClick={closeCancelTopUpModal} aria-label="Close">×</button>
+            </div>
+            <p className="modal-message">Are you sure you want to cancel this top-up request? Please provide a reason (optional).</p>
+            <label className="form-label-block" style={{ marginBottom: '1rem' }}>
+              Reason for cancellation
+              <textarea rows={3} value={cancelTopUpRemarks} onChange={(e) => setCancelTopUpRemarks(e.target.value)} placeholder="e.g. No longer required" className="form-input" autoComplete="off" />
+            </label>
+            <div className="form-actions">
+              <button type="button" className="btn-secondary" onClick={closeCancelTopUpModal}>Back</button>
+              <button type="button" className="btn-primary btn-primary-red" onClick={handleCancelTopUpConfirm}>Confirm Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rejectBenefitId && (
+        <div className="modal-overlay" onClick={closeRejectBenefitModal} role="dialog" aria-modal="true" aria-labelledby="reject-benefit-title">
+          <div className="modal modal-confirm" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h3 id="reject-benefit-title">Reject Enrollment Request</h3>
+              <button type="button" className="modal-close" onClick={closeRejectBenefitModal} aria-label="Close">×</button>
+            </div>
+            <p className="modal-message">Are you sure you want to reject this enrollment request? Please provide a reason.</p>
+            <label className="form-label-block" style={{ marginBottom: '1rem' }}>
+              Reason for rejection
+              <textarea rows={3} value={rejectBenefitRemarks} onChange={(e) => setRejectBenefitRemarks(e.target.value)} placeholder="e.g. Invalid document" className="form-input" autoComplete="off" />
+            </label>
+            <div className="form-actions">
+              <button type="button" className="btn-secondary" onClick={closeRejectBenefitModal}>Back</button>
+              <button type="button" className="btn-primary btn-primary-red" onClick={handleRejectBenefitConfirm}>Confirm Reject</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelBenefitId && (
+        <div className="modal-overlay" onClick={closeCancelBenefitModal} role="dialog" aria-modal="true" aria-labelledby="cancel-benefit-title">
+          <div className="modal modal-confirm" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h3 id="cancel-benefit-title">Cancel Enrollment Request</h3>
+              <button type="button" className="modal-close" onClick={closeCancelBenefitModal} aria-label="Close">×</button>
+            </div>
+            <p className="modal-message">Are you sure you want to cancel this enrollment request? Please provide a reason (optional).</p>
+            <label className="form-label-block" style={{ marginBottom: '1rem' }}>
+              Reason for cancellation
+              <textarea rows={3} value={cancelBenefitRemarks} onChange={(e) => setCancelBenefitRemarks(e.target.value)} placeholder="e.g. Duplicate request" className="form-input" autoComplete="off" />
+            </label>
+            <div className="form-actions">
+              <button type="button" className="btn-secondary" onClick={closeCancelBenefitModal}>Back</button>
+              <button type="button" className="btn-primary btn-primary-red" onClick={handleCancelBenefitConfirm}>Confirm Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}

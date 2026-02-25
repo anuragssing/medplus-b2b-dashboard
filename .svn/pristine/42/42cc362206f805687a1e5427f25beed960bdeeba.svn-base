@@ -1,0 +1,204 @@
+import { useState, useEffect } from 'react'
+import { useNavigate, Link, useParams, useLocation } from 'react-router-dom'
+import { useDashboardStore } from '../store/dashboardStore.jsx'
+
+const PARTNER_TYPES = [
+  { value: 'organization', label: 'Organization' },
+  { value: 'collection_center', label: 'Collection Center' },
+  { value: 'processing_center', label: 'Processing Center' },
+  { value: 'diagnostic', label: 'Diagnostic' },
+]
+const MAX_HR_EMAILS = 5
+
+export default function CreatePartner() {
+  const { id } = useParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const mode = location.pathname.includes('/view/') ? 'view' : location.pathname.includes('/edit/') ? 'edit' : 'create'
+  const partners = useDashboardStore((s) => s.partners) || []
+  const addPartner = useDashboardStore((s) => s.addPartner)
+  const updatePartner = useDashboardStore((s) => s.updatePartner)
+  const [partnerPhones, setPartnerPhones] = useState([])
+  const [partnerEmails, setPartnerEmails] = useState([])
+  const [partnerPhoneInput, setPartnerPhoneInput] = useState('')
+  const [partnerEmailInput, setPartnerEmailInput] = useState('')
+  const [selectedAddressType, setSelectedAddressType] = useState('primary')
+  const [logViewOpen, setLogViewOpen] = useState(false)
+  const [partnerType, setPartnerType] = useState('')
+  const [hrEmails, setHrEmails] = useState(() => Array(MAX_HR_EMAILS).fill(''))
+
+  const isView = mode === 'view'
+  const isEdit = mode === 'edit'
+  const partner = id ? partners.find((p) => p.id === id) : null
+
+  useEffect(() => {
+    if (partner) {
+      setPartnerType(partner.partnerType || '')
+      const existing = partner.hrEmails || []
+      setHrEmails((prev) => prev.map((_, i) => existing[i] ?? ''))
+    }
+  }, [partner?.id])
+
+  useEffect(() => {
+    if ((isView || isEdit) && id && !partner) {
+      navigate('/dashboard?tab=partners', { replace: true })
+    }
+  }, [id, partner, isView, isEdit, navigate])
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    const fd = new FormData(e.target)
+    const contact = partnerEmails[0] || partnerPhones[0] || fd.get('partner_contactName') || '—'
+    const type = fd.get('partner_type') || 'organization'
+    const collectedHrEmails = type === 'organization' ? hrEmails.map((e) => (e || '').trim()).filter(Boolean).slice(0, MAX_HR_EMAILS) : []
+    const payload = {
+      name: fd.get('partner_name') || '',
+      partnerType: type,
+      contact,
+      status: fd.get('partner_status') || 'active',
+      ...(type === 'organization' ? { hrEmails: collectedHrEmails } : {}),
+    }
+    if (isEdit && id) {
+      updatePartner(id, payload)
+      navigate('/dashboard?tab=partners', { replace: true })
+    } else {
+      addPartner(payload)
+      navigate('/dashboard?tab=partners', { replace: true })
+    }
+  }
+
+  const backLink = isView || isEdit ? '/dashboard?tab=partners' : '/dashboard?tab=partners'
+  const title = isView ? 'View Partner' : isEdit ? 'Edit Partner' : 'Partner Creation'
+  const desc = isView ? 'Partner details (read-only).' : isEdit ? 'Update partner details below.' : 'Fill in the details below to register as a new partner.'
+  const readOnly = isView
+
+  return (
+    <>
+      <header className="main-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.25rem' }}>
+          <Link to={backLink} className="btn-secondary" style={{ textDecoration: 'none' }}>← Back to Dashboard</Link>
+        </div>
+        <h2 className="page-title">{title}</h2>
+        <p className="page-desc">{desc}</p>
+      </header>
+      <div className="content">
+        <section className="panel">
+          <form className="form form-modal form-partner" onSubmit={handleSubmit}>
+            <div className="form-section">
+              <h4 className="form-section-title">| Partner Type</h4>
+              <label>Partner Type * <select name="partner_type" required disabled={readOnly} value={partnerType || partner?.partnerType || ''} onChange={(e) => setPartnerType(e.target.value)}>
+                <option value="">Select Partner Type...</option>
+                {PARTNER_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select></label>
+            </div>
+            {((partnerType || partner?.partnerType) === 'organization') && (
+              <div className="form-section">
+                <h4 className="form-section-title">| HR Email IDs (for OTP login)</h4>
+                <p className="form-hint" style={{ marginBottom: '0.75rem' }}>Add up to 5 HR emails. These users can sign in with email + OTP and see data for this organization.</p>
+                {hrEmails.map((email, i) => (
+                  <div key={i} className="form-row form-row-1" style={{ marginBottom: '0.5rem' }}>
+                    <label>HR Email {i + 1} <input type="email" placeholder="hr@company.com" value={email} onChange={(e) => setHrEmails((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))} readOnly={readOnly} /></label>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="form-section">
+              <h4 className="form-section-title">| Partner Details</h4>
+              <div className="form-row form-row-2">
+                <label>Partner Code <input type="text" placeholder="Auto-generated" readOnly /></label>
+                <label>Partner Id <input type="text" placeholder="Auto-generated" value={partner?.id ?? ''} readOnly /></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>GST Type <select disabled={readOnly}><option value="">Select</option><option>Register</option><option>Unregister</option></select></label>
+                <label>GSTIN NO <input type="text" placeholder="e.g. 36AAQFM1085K1ZT" readOnly={readOnly} /></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>GSTIN State Code <input type="text" placeholder="e.g. 36" readOnly={readOnly} /></label>
+                <label>Status <select name="partner_status" disabled={readOnly} defaultValue={partner?.status}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>Name * <input name="partner_name" type="text" placeholder="Partner name" required readOnly={readOnly} defaultValue={partner?.name} /></label>
+                <label>PAN Number * <input type="text" placeholder="PAN" required={!readOnly} readOnly={readOnly} /></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>MSME Type <input type="text" placeholder="Optional" readOnly={readOnly} /></label>
+                <label>MSME Category <input type="text" placeholder="Optional" readOnly={readOnly} /></label>
+              </div>
+            </div>
+            <div className="form-section">
+              <h4 className="form-section-title">| Contact Details</h4>
+              <div className="form-row form-row-2">
+                <label>Name <input name="partner_contactName" type="text" placeholder="Contact person name" readOnly={readOnly} defaultValue={partner?.contact} /></label>
+                <label>Fax Number <input type="text" placeholder="Optional" readOnly={readOnly} /></label>
+              </div>
+              <div className="form-row form-row-1">
+                <label>Phone Number <span className="form-inline-add">
+                  <input type="tel" placeholder="10-digit mobile" value={partnerPhoneInput} onChange={(e) => setPartnerPhoneInput(e.target.value)} disabled={readOnly} />
+                  {!readOnly && <button type="button" className="btn-add" onClick={() => { if (partnerPhoneInput.trim()) { setPartnerPhones([...partnerPhones, partnerPhoneInput.trim()]); setPartnerPhoneInput(''); } }}>+ add</button>}
+                </span></label>
+                {partnerPhones.length > 0 && <div className="form-pills">Added Numbers: {partnerPhones.map((p, i) => <span key={i} className="pill">{p} {!readOnly && <button type="button" className="pill-remove" onClick={() => setPartnerPhones(partnerPhones.filter((_, j) => j !== i))}>×</button>}</span>)}</div>}
+              </div>
+              <div className="form-row form-row-1">
+                <label>Email ID <span className="form-inline-add">
+                  <input type="email" placeholder="email@example.com" value={partnerEmailInput} onChange={(e) => setPartnerEmailInput(e.target.value)} disabled={readOnly} />
+                  {!readOnly && <button type="button" className="btn-add" onClick={() => { if (partnerEmailInput.trim()) { setPartnerEmails([...partnerEmails, partnerEmailInput.trim()]); setPartnerEmailInput(''); } }}>+ add</button>}
+                </span></label>
+                {partnerEmails.length > 0 && <div className="form-pills">Added Email Ids: {partnerEmails.map((e, i) => <span key={i} className="pill">{e} {!readOnly && <button type="button" className="pill-remove" onClick={() => setPartnerEmails(partnerEmails.filter((_, j) => j !== i))}>×</button>}</span>)}</div>}
+              </div>
+            </div>
+            <div className="form-section">
+              <h4 className="form-section-title">| Business Address Details</h4>
+              <div className="form-row form-row-2">
+                <label>Address Type <input type="text" placeholder="e.g. Office" readOnly={readOnly} /></label>
+                <label>Address Label <input type="text" placeholder="e.g. Head Office" readOnly={readOnly} /></label>
+              </div>
+              <div className="form-row form-row-1">
+                <label>Address <input type="text" placeholder="Full address" readOnly={readOnly} /></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>Pincode <input type="text" placeholder="e.g. 500029" readOnly={readOnly} /></label>
+                <label>Country <input type="text" placeholder="e.g. India" readOnly={readOnly} /></label>
+              </div>
+              <div className="form-row form-row-2">
+                <label>State <input type="text" placeholder="e.g. Telangana" readOnly={readOnly} /></label>
+                <label>City <input type="text" placeholder="e.g. Hyderabad" readOnly={readOnly} /></label>
+              </div>
+              <div className="selected-address-box">
+                <h5>Selected Address</h5>
+                <div className="address-type-toggles">
+                  <button type="button" className={selectedAddressType === 'primary' ? 'toggle active primary' : 'toggle'} onClick={() => !readOnly && setSelectedAddressType('primary')} disabled={readOnly}>Primary Address</button>
+                  <button type="button" className={selectedAddressType === 'office' ? 'toggle active' : 'toggle'} onClick={() => !readOnly && setSelectedAddressType('office')} disabled={readOnly}>OFFICE</button>
+                </div>
+                <div className="address-details-box">
+                  <p>Address: —</p>
+                  {!readOnly && <button type="button" className="btn-edit">Edit</button>}
+                </div>
+              </div>
+            </div>
+            <div className="form-section">
+              <h4 className="form-section-title">| Upload KYC Document</h4>
+              <div className="upload-actions">
+                <button type="button" className="btn-scan" disabled={readOnly}>Scan ▾</button>
+                <button type="button" className="btn-browse" disabled={readOnly}>Browse</button>
+              </div>
+              <p className="upload-supported">Supported Files: .jpg, .jpeg, .pdf, .png</p>
+            </div>
+            <div className="form-section log-view-section">
+              <button type="button" className="log-view-toggle" onClick={() => !readOnly && setLogViewOpen(!logViewOpen)} disabled={readOnly}>
+                Log View {logViewOpen ? '▴' : '▾'}
+              </button>
+              {logViewOpen && <div className="log-view-content">Activity log will appear here.</div>}
+            </div>
+            <div className="form-section-actions" style={{ marginTop: '1.5rem', display: 'flex', gap: '0.75rem' }}>
+              <Link to={backLink} className="btn-secondary" style={{ textDecoration: 'none' }}>Cancel</Link>
+              {!readOnly && <button type="submit" className="btn-primary">{isEdit ? 'Update Partner' : 'Create Partner'}</button>}
+            </div>
+          </form>
+        </section>
+      </div>
+    </>
+  )
+}

@@ -1,0 +1,262 @@
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+
+const initialPartners = [
+  { id: 'p1', name: 'Infosys', partnerType: 'organization', contact: 'partners@infosys.com', status: 'active', hrEmails: ['hr@infosys.com', 'admin@infosys.com'] },
+  { id: 'p2', name: 'Vijaya Diagnostic', partnerType: 'diagnostic', contact: 'ops@vijayadiagnostic.com', status: 'active' },
+  { id: 'p3', name: 'TCS', partnerType: 'organization', contact: 'bd@tcs.com', status: 'active', hrEmails: ['hr@tcs.com'] },
+  { id: 'p4', name: 'Medquest Collection Center', partnerType: 'processing_center', contact: 'info@medquest.com', status: 'active' },
+  { id: 'p5', name: 'Wipro', partnerType: 'organization', contact: 'bd@wipro.com', status: 'active', hrEmails: ['hr@wipro.com'] },
+]
+
+const initialClients = [
+  { id: 'c1', partnerId: 'p1', companyName: 'Infosys', industry: 'Healthcare', gstNo: '29AABCM1234F1Z5', status: 'Client Onboarded' },
+  { id: 'c2', partnerId: 'p3', companyName: 'TCS', industry: 'Technology', gstNo: '36AACCW5678G2Z9', status: 'Client Onboarded' },
+  { id: 'c3', partnerId: 'p5', companyName: 'Wipro', industry: 'Technology', gstNo: '27AAWPL9876K1Z3', status: 'Client Onboarded' },
+]
+
+const initialCenters = [
+  { id: 'cc1', partnerId: 'p2', name: 'Vijaya Diagnostic Main Lab', city: 'Bangalore', address: 'MG Road', slots: 200 },
+  { id: 'cc2', partnerId: 'p2', name: 'Vijaya Diagnostic North', city: 'Delhi', address: 'Sector 18', slots: 80 },
+  { id: 'cc3', partnerId: 'p4', name: 'Medquest Collection Center', city: 'Mumbai', address: 'Block A, Tech Park', slots: 120 },
+]
+
+const initialBenefits = [
+  // Infosys (c1): health_care, pharma, combo
+  { id: 'b1', clientId: 'c1', name: 'Corporate Gold', status: 'Active', type: 'health_care', loyalty: '1-loyalty one', paymentType: 'Regular', description: 'Health care plan for Infosys. Provides various benefits.', priceConfiguration: [{ type: 'primary', mrp: 1500, price: 1350 }, { type: 'free_addon', minMembers: 0, maxMembers: 4 }, { type: 'addon', mrp: 1500, price: 1200, minMembers: 1, maxMembers: 5 }], startDate: '2025-01-01', endDate: '2025-12-31', primaryPrice: 1350, addOnPrice: 1200, isRenewalAllowed: true, renewalDays: 30, isProRataAllowed: true },
+  { id: 'b3', clientId: 'c1', name: 'Pharma Plus', status: 'Active', type: 'pharma', loyalty: '1-loyalty one', paymentType: 'Regular', description: 'Pharma benefit for Infosys.', priceConfiguration: [{ type: 'primary', mrp: 800, price: 700 }], startDate: '2025-01-01', endDate: '2025-12-31', primaryPrice: 700, addOnPrice: 0, isRenewalAllowed: false, isProRataAllowed: false },
+  { id: 'b4', clientId: 'c1', name: 'Gold Combo', status: 'Active', type: 'combo', comboPharmaBenefitId: 'b3', comboHealthCareBenefitId: 'b1', priceConfiguration: [], primaryPrice: 2050, addOnPrice: 1200, description: 'Health Care + Pharma combo for Infosys.' },
+  // TCS (c2): health_care, pharma, combo
+  { id: 'b2', clientId: 'c2', name: 'Employee Wallet Basic', status: 'Active', type: 'pharma', loyalty: '1-loyalty one', paymentType: 'employee_co_pay', description: 'Employee wallet for basic wellness benefits.', priceConfiguration: [{ type: 'primary', mrp: 1400, price: 1200 }], startDate: '2025-01-01', endDate: '2025-12-31', primaryPrice: 1200, addOnPrice: 0, isRenewalAllowed: false, isProRataAllowed: false },
+  { id: 'b5', clientId: 'c2', name: 'TCS Health Plus', status: 'Active', type: 'health_care', loyalty: '1-loyalty one', paymentType: 'Regular', description: 'Health care plan for TCS employees.', priceConfiguration: [{ type: 'primary', mrp: 1600, price: 1440 }, { type: 'free_addon', minMembers: 0, maxMembers: 3 }, { type: 'addon', mrp: 1600, price: 1280, minMembers: 1, maxMembers: 4 }], startDate: '2025-01-01', endDate: '2025-12-31', primaryPrice: 1440, addOnPrice: 1280, isRenewalAllowed: true, renewalDays: 30, isProRataAllowed: true },
+  { id: 'b6', clientId: 'c2', name: 'TCS Combo Plan', status: 'Active', type: 'combo', comboPharmaBenefitId: 'b2', comboHealthCareBenefitId: 'b5', priceConfiguration: [], primaryPrice: 2640, addOnPrice: 1280, description: 'Health Care + Pharma combo for TCS.' },
+  // Wipro (c3): health_care, pharma, combo
+  { id: 'b7', clientId: 'c3', name: 'Wipro Wellness', status: 'Active', type: 'health_care', loyalty: '1-loyalty one', paymentType: 'Regular', description: 'Health care plan for Wipro employees.', priceConfiguration: [{ type: 'primary', mrp: 1400, price: 1260 }, { type: 'free_addon', minMembers: 0, maxMembers: 5 }, { type: 'addon', mrp: 1400, price: 1120, minMembers: 1, maxMembers: 5 }], startDate: '2025-01-01', endDate: '2025-12-31', primaryPrice: 1260, addOnPrice: 1120, isRenewalAllowed: true, renewalDays: 30, isProRataAllowed: true },
+  { id: 'b8', clientId: 'c3', name: 'Wipro Pharma Care', status: 'Active', type: 'pharma', loyalty: '1-loyalty one', paymentType: 'Regular', description: 'Pharma benefit for Wipro.', priceConfiguration: [{ type: 'primary', mrp: 900, price: 800 }], startDate: '2025-01-01', endDate: '2025-12-31', primaryPrice: 800, addOnPrice: 0, isRenewalAllowed: false, isProRataAllowed: false },
+  { id: 'b9', clientId: 'c3', name: 'Wipro Combo', status: 'Active', type: 'combo', comboPharmaBenefitId: 'b8', comboHealthCareBenefitId: 'b7', priceConfiguration: [], primaryPrice: 2060, addOnPrice: 1120, description: 'Health Care + Pharma combo for Wipro.' },
+]
+
+const initialPackages = [
+  { id: 'pk1', clientId: 'c1', name: 'Executive Health Check', tests: 25, price: '₹4,999', validMonths: 12 },
+  { id: 'pk2', clientId: 'c1', name: 'Basic Screening', tests: 12, price: '₹1,999', validMonths: 6 },
+  { id: 'pk3', clientId: 'c2', name: 'Employee Wellness Pack', tests: 18, price: '₹2,499', validMonths: 12 },
+  { id: 'pk4', clientId: 'c2', name: 'TCS Full Body Check', tests: 22, price: '₹3,999', validMonths: 12 },
+  { id: 'pk5', clientId: 'c3', name: 'Wipro Preventive Care', tests: 20, price: '₹3,499', validMonths: 12 },
+  { id: 'pk6', clientId: 'c3', name: 'Wipro Basic Panel', tests: 14, price: '₹2,199', validMonths: 6 },
+]
+
+const initialTopUpRequests = [
+  { id: '1', totalMembers: 50, estimatedPrice: 67500, status: 'initiated', organizationId: 'p1', memberDetails: [{ planName: 'Corporate Gold', primaryCount: 30, addonCount: 20 }], paymentTransactionId: '', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: '', createdAt: '2025-02-01T10:00:00.000Z' },
+  { id: '2', totalMembers: 80, estimatedPrice: 108000, status: 'payment_done', organizationId: 'p1', memberDetails: [{ planName: 'Corporate Gold', primaryCount: 50, addonCount: 30 }], paymentTransactionId: 'TXN001', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: '', createdAt: '2025-02-02T11:00:00.000Z' },
+  { id: '3', totalMembers: 100, estimatedPrice: 135000, status: 'payment_verified', organizationId: 'p3', memberDetails: [{ planName: 'Employee Wallet Basic', primaryCount: 100, addonCount: 0 }], paymentTransactionId: 'TXN002', paymentReceipt: '', verifiedBy: 'Admin', verifiedDate: '2025-02-03T10:00:00.000Z', remarks: '', createdAt: '2025-02-03T09:00:00.000Z' },
+  { id: '4', totalMembers: 30, estimatedPrice: 40500, status: 'payment_rejected', organizationId: 'p1', memberDetails: [{ planName: 'Corporate Gold', primaryCount: 30, addonCount: 0 }], paymentTransactionId: 'TXN003', paymentReceipt: '', verifiedBy: 'Admin', verifiedDate: '2025-02-04T10:00:00.000Z', remarks: 'Invalid payment details', createdAt: '2025-02-04T08:00:00.000Z' },
+  { id: '5', totalMembers: 20, estimatedPrice: 27000, status: 'cancelled', organizationId: 'p3', memberDetails: [{ planName: 'Employee Wallet Basic', primaryCount: 20, addonCount: 0 }], paymentTransactionId: '', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: 'Cancelled by HR', createdAt: '2025-02-05T10:00:00.000Z' },
+  { id: '6', totalMembers: 60, estimatedPrice: 86400, status: 'initiated', organizationId: 'p3', memberDetails: [{ planName: 'TCS Health Plus', primaryCount: 40, addonCount: 20 }], paymentTransactionId: '', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: '', createdAt: '2025-02-06T10:00:00.000Z' },
+  { id: '7', totalMembers: 45, estimatedPrice: 92700, status: 'payment_verified', organizationId: 'p3', memberDetails: [{ planName: 'TCS Combo Plan', primaryCount: 45, addonCount: 0 }], paymentTransactionId: 'TXN004', paymentReceipt: '', verifiedBy: 'Admin', verifiedDate: '2025-02-07T10:00:00.000Z', remarks: '', createdAt: '2025-02-07T09:00:00.000Z' },
+  { id: '8', totalMembers: 70, estimatedPrice: 144200, status: 'payment_done', organizationId: 'p5', memberDetails: [{ planName: 'Wipro Combo', primaryCount: 50, addonCount: 20 }], paymentTransactionId: 'TXN005', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: '', createdAt: '2025-02-08T10:00:00.000Z' },
+  { id: '9', totalMembers: 25, estimatedPrice: 31500, status: 'initiated', organizationId: 'p5', memberDetails: [{ planName: 'Wipro Wellness', primaryCount: 25, addonCount: 0 }], paymentTransactionId: '', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: '', createdAt: '2025-02-09T10:00:00.000Z' },
+]
+
+const initialBenefitRequests = [
+  { id: '1', planId: 'b1', planName: 'Corporate Gold', totalPrice: 135000, uploadedDocumentName: 'employees.xlsx', organizationId: 'p1', status: 'initiated', responseDocument: '', modifiedBy: '', modifiedDate: '', remarks: '', createdAt: '2025-02-01T10:00:00.000Z' },
+  { id: '2', planId: 'b1', planName: 'Corporate Gold', totalPrice: 67500, uploadedDocumentName: 'addon_members.xlsx', organizationId: 'p1', status: 'approved', responseDocument: 'certificate.pdf', modifiedBy: 'Admin', modifiedDate: '2025-02-05T10:00:00.000Z', remarks: '', createdAt: '2025-02-03T09:00:00.000Z' },
+  { id: '3', planId: 'b2', planName: 'Employee Wallet Basic', totalPrice: 24000, uploadedDocumentName: 'invalid.xlsx', organizationId: 'p3', status: 'rejected', responseDocument: '', modifiedBy: 'Admin', modifiedDate: '2025-02-06T09:00:00.000Z', remarks: 'Rejected by admin', createdAt: '2025-02-04T14:00:00.000Z' },
+  { id: '4', planId: 'b2', planName: 'Employee Wallet Basic', totalPrice: 36000, uploadedDocumentName: 'cancelled_enroll.xlsx', organizationId: 'p3', status: 'cancelled', responseDocument: '', modifiedBy: '', modifiedDate: '', remarks: 'Cancelled by HR', createdAt: '2025-02-07T10:00:00.000Z' },
+  { id: '5', planId: 'b5', planName: 'TCS Health Plus', totalPrice: 86400, uploadedDocumentName: 'tcs_employees.xlsx', organizationId: 'p3', status: 'approved', responseDocument: 'tcs_cert.pdf', modifiedBy: 'Admin', modifiedDate: '2025-02-08T10:00:00.000Z', remarks: '', createdAt: '2025-02-07T11:00:00.000Z' },
+  { id: '6', planId: 'b6', planName: 'TCS Combo Plan', totalPrice: 132000, uploadedDocumentName: 'tcs_combo_enroll.xlsx', organizationId: 'p3', status: 'initiated', responseDocument: '', modifiedBy: '', modifiedDate: '', remarks: '', createdAt: '2025-02-09T10:00:00.000Z' },
+  { id: '7', planId: 'b7', planName: 'Wipro Wellness', totalPrice: 63000, uploadedDocumentName: 'wipro_wellness.xlsx', organizationId: 'p5', status: 'approved', responseDocument: 'wipro_cert.pdf', modifiedBy: 'Admin', modifiedDate: '2025-02-10T10:00:00.000Z', remarks: '', createdAt: '2025-02-09T14:00:00.000Z' },
+  { id: '8', planId: 'b9', planName: 'Wipro Combo', totalPrice: 103000, uploadedDocumentName: 'wipro_combo.xlsx', organizationId: 'p5', status: 'payment_done', responseDocument: '', modifiedBy: '', modifiedDate: '', remarks: '', createdAt: '2025-02-10T09:00:00.000Z' },
+]
+
+// Wallet balance per organization (credits when admin verifies top-up payment)
+function computeInitialOrganizationWallets(requests) {
+  const wallets = {}
+  ;(requests || []).filter((r) => r.status === 'payment_verified').forEach((r) => {
+    const orgId = r.organizationId || ''
+    if (orgId) wallets[orgId] = (wallets[orgId] || 0) + (Number(r.estimatedPrice) || 0)
+  })
+  return wallets
+}
+
+const initialOrganizationWallets = computeInitialOrganizationWallets(initialTopUpRequests)
+
+export const useDashboardStore = create(
+  persist(
+    (set) => ({
+      partners: initialPartners,
+      clients: initialClients,
+      centers: initialCenters,
+      benefits: initialBenefits,
+      packages: initialPackages,
+      topUpRequests: initialTopUpRequests,
+      benefitRequests: initialBenefitRequests,
+      organizationWallets: initialOrganizationWallets,
+
+      addPartner: (partner) =>
+        set((s) => ({
+          partners: [...s.partners, { ...partner, id: partner.id || 'p' + Date.now() }],
+        })),
+
+      updatePartner: (id, updates) =>
+        set((s) => ({
+          partners: (s.partners || []).map((p) => (p.id === id ? { ...p, ...updates } : p)),
+        })),
+
+      addClient: (client) =>
+        set((s) => ({
+          clients: [...s.clients, { ...client, id: client.id || 'c' + Date.now() }],
+        })),
+
+      addCenter: (center) =>
+        set((s) => ({
+          centers: [...s.centers, { ...center, id: center.id || 'cc' + Date.now() }],
+        })),
+
+      addBenefit: (benefit) =>
+        set((s) => {
+          const list = s.benefits || []
+          const maxNum = list.length ? Math.max(...list.map((b) => Number(String(b.id).replace(/^b/, '')) || 0)) : 0
+          const id = 'b' + (maxNum + 1)
+          if (benefit.type === 'combo') {
+            const pharma = (s.benefits || []).find((b) => b.id === benefit.comboPharmaBenefitId)
+            const healthCare = (s.benefits || []).find((b) => b.id === benefit.comboHealthCareBenefitId)
+            const primaryPrice = (Number(pharma?.primaryPrice) || 0) + (Number(healthCare?.primaryPrice) || 0)
+            const addOnPrice = Number(healthCare?.addOnPrice) || 0
+            return {
+              benefits: [...list, { ...benefit, id, primaryPrice, addOnPrice }],
+            }
+          }
+          const config = benefit.priceConfiguration || []
+          const primaryRow = config.find((p) => p.type === 'primary')
+          const addonRow = config.find((p) => p.type === 'addon')
+          return {
+            benefits: [
+              ...list,
+              {
+                ...benefit,
+                id,
+                primaryPrice: primaryRow ? Number(primaryRow.price) || 0 : benefit.primaryPrice || 0,
+                addOnPrice: addonRow ? Number(addonRow.price) || 0 : benefit.addOnPrice || 0,
+              },
+            ],
+          }
+        }),
+
+      updateBenefit: (id, updates) =>
+        set((s) => ({
+          benefits: (s.benefits || []).map((b) => (b.id === id ? { ...b, ...updates } : b)),
+        })),
+
+      addPackage: (pkg) =>
+        set((s) => ({
+          packages: [...s.packages, { ...pkg, id: pkg.id || 'pk' + Date.now() }],
+        })),
+
+      addTopUpRequest: (payload) =>
+        set((s) => {
+          const list = s.topUpRequests || []
+          const id = String(list.length ? Math.max(...list.map((r) => Number(r.id) || 0)) + 1 : 1)
+          return {
+            topUpRequests: [
+              ...list,
+              {
+                id,
+                totalMembers: payload.totalMembers ?? 0,
+                estimatedPrice: payload.estimatedPrice ?? 0,
+                status: 'initiated',
+                organizationId: payload.organizationId ?? '',
+                memberDetails: payload.memberDetails ?? [],
+                paymentTransactionId: '',
+                paymentReceipt: '',
+                verifiedBy: '',
+                verifiedDate: '',
+                remarks: '',
+                createdAt: new Date().toISOString(),
+              },
+            ],
+          }
+        }),
+
+      updateTopUpRequestStatus: (id, updates) =>
+        set((s) => {
+          const list = s.topUpRequests || []
+          const request = list.find((r) => r.id === id)
+          const isNowVerified = updates.status === 'payment_verified'
+          const wasNotVerified = request && request.status !== 'payment_verified'
+          const shouldCreditWallet = isNowVerified && wasNotVerified && request?.organizationId
+          const creditAmount = shouldCreditWallet ? (Number(request.estimatedPrice) || 0) : 0
+          const newWallets = { ...(s.organizationWallets || {}) }
+          if (creditAmount > 0 && request?.organizationId) {
+            newWallets[request.organizationId] = (newWallets[request.organizationId] || 0) + creditAmount
+          }
+          return {
+            ...s,
+            topUpRequests: list.map((r) => (r.id === id ? { ...r, ...updates } : r)),
+            organizationWallets: newWallets,
+          }
+        }),
+
+      cancelTopUpRequest: (id) =>
+        set((s) => ({
+          topUpRequests: (s.topUpRequests || []).map((r) =>
+            r.id === id ? { ...r, status: 'cancelled' } : r
+          ),
+        })),
+
+      addBenefitRequest: (payload) =>
+        set((s) => {
+          const list = s.benefitRequests || []
+          const id = String(list.length ? Math.max(...list.map((r) => Number(r.id) || 0)) + 1 : 1)
+          return {
+            benefitRequests: [
+              ...list,
+              {
+                id,
+                planId: payload.planId ?? '',
+                planName: payload.planName ?? '',
+                totalPrice: payload.totalPrice ?? 0,
+                uploadedDocumentName: payload.uploadedDocumentName ?? '',
+                uploadedDocumentContent: payload.uploadedDocumentContent ?? '',
+                organizationId: payload.organizationId ?? '',
+                status: 'initiated',
+                responseDocument: '',
+                responseDocumentContent: payload.responseDocumentContent ?? '',
+                modifiedBy: '',
+                modifiedDate: '',
+                remarks: '',
+                createdAt: new Date().toISOString(),
+              },
+            ],
+          }
+        }),
+
+      updateBenefitRequestStatus: (id, updates) =>
+        set((s) => ({
+          benefitRequests: (s.benefitRequests || []).map((r) =>
+            r.id === id ? { ...r, ...updates } : r
+          ),
+        })),
+    }),
+    {
+      name: 'bd-dashboard-store',
+      merge: (persistedState, currentState) => {
+        const topUp = persistedState && Array.isArray(persistedState.topUpRequests)
+          ? persistedState.topUpRequests
+          : currentState.topUpRequests
+        const benefit = persistedState && Array.isArray(persistedState.benefitRequests)
+          ? persistedState.benefitRequests
+          : currentState.benefitRequests
+        const wallets = persistedState && persistedState.organizationWallets && typeof persistedState.organizationWallets === 'object'
+          ? persistedState.organizationWallets
+          : currentState.organizationWallets
+        return {
+          ...currentState,
+          ...persistedState,
+          topUpRequests: topUp,
+          benefitRequests: benefit,
+          organizationWallets: wallets,
+        }
+      },
+    }
+  )
+);

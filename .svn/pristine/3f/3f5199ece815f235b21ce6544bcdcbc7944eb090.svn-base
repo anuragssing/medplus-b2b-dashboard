@@ -1,0 +1,160 @@
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { useDashboardStore } from '../store/dashboardStore.jsx'
+import './Login.css'
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// Mock: in dev we "send" OTP 123456; any 6-digit OTP is accepted for demo
+const MOCK_OTP = '123456'
+
+export default function HrLogin() {
+  const navigate = useNavigate()
+  const { login } = useAuth()
+  const [email, setEmail] = useState('')
+  const [otpSent, setOtpSent] = useState(false)
+  const [otp, setOtp] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [resendCooldown, setResendCooldown] = useState(0)
+
+  const isValidCorporateEmail = (value) => {
+    if (!value || !EMAIL_REGEX.test(value)) return false
+    // Optional: require corporate-looking domain (not gmail/yahoo etc.)
+    const domain = value.split('@')[1]?.toLowerCase() || ''
+    const personal = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com']
+    return !personal.some((d) => domain === d || domain.endsWith('.' + d))
+  }
+
+  const handleSendOtp = async (e) => {
+    e.preventDefault()
+    setError('')
+    const trimmed = email.trim()
+    if (!trimmed) {
+      setError('Enter your email')
+      return
+    }
+    if (!isValidCorporateEmail(trimmed)) {
+      setError('Please use a valid corporate email address')
+      return
+    }
+    setLoading(true)
+    try {
+      // Mock: simulate API call to send OTP
+      await new Promise((r) => setTimeout(r, 800))
+      setOtpSent(true)
+      setOtp('')
+      setResendCooldown(60)
+      const interval = setInterval(() => {
+        setResendCooldown((c) => {
+          if (c <= 1) clearInterval(interval)
+          return Math.max(0, c - 1)
+        })
+      }, 1000)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const partners = useDashboardStore((s) => s.partners) || []
+
+  const handleVerifyOtp = (e) => {
+    e.preventDefault()
+    setError('')
+    const trimmed = otp.replace(/\s/g, '')
+    if (trimmed.length !== 6) {
+      setError('Enter the 6-digit OTP')
+      return
+    }
+    if (trimmed !== MOCK_OTP) {
+      setError('Invalid OTP. Use 123456 for demo.')
+      return
+    }
+    const emailLower = email.trim().toLowerCase()
+    const org = partners.find(
+      (p) => p.partnerType === 'organization' && (p.hrEmails || []).some((e) => (e || '').toLowerCase() === emailLower)
+    )
+    if (!org) {
+      setError('No organization linked to this email. Contact your admin to add this email as an HR contact.')
+      return
+    }
+    login({
+      type: 'hr',
+      email: email.trim(),
+      name: email.trim().split('@')[0],
+      organizationId: org.id,
+      organizationName: org.name,
+    })
+    navigate('/dashboard', { replace: true })
+  }
+
+  return (
+    <div className="login-page">
+      <div className="login-panel login-panel--left">
+        <div className="login-brand-block">
+          <span className="logo-icon">BD</span>
+          <h1>B2B Dashboard</h1>
+          <p className="login-tagline">HR sign in with email & OTP</p>
+        </div>
+      </div>
+      <div className="login-panel login-panel--right">
+        <div className="login-form-wrap">
+          <div className="login-card">
+            <div className="login-brand">
+              <span className="logo-icon">BD</span>
+              <h1>HR</h1>
+            </div>
+            {!otpSent ? (
+              <>
+                <form className="login-form" onSubmit={handleSendOtp}>
+                  {error && <div className="login-error">{error}</div>}
+                  <label>
+                    Email
+                    <input
+                      type="email"
+                      placeholder="you@company.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      autoComplete="email"
+                    />
+                  </label>
+                  <button type="submit" className="btn-login" disabled={loading}>
+                    {loading ? 'Sending…' : 'Send OTP'}
+                  </button>
+                </form>
+                <p className="login-hint">OTP will be sent to your email. Demo: use a corporate-style email (e.g. hr@company.com).</p>
+              </>
+            ) : (
+              <>
+                <form className="login-form" onSubmit={handleVerifyOtp}>
+                  {error && <div className="login-error">{error}</div>}
+                  <p className="login-otp-sent">OTP sent to <strong>{email}</strong></p>
+                  <label>
+                    OTP
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="000000"
+                      maxLength={6}
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                      autoComplete="one-time-code"
+                    />
+                  </label>
+                  <button type="submit" className="btn-login">Verify & sign in</button>
+                  {resendCooldown > 0 ? (
+                    <span className="login-resend">Resend OTP in {resendCooldown}s</span>
+                  ) : (
+                    <button type="button" className="btn-link" onClick={() => { setOtpSent(false); setError(''); }}>Resend OTP</button>
+                  )}
+                </form>
+                <p className="login-hint">Demo OTP: <strong>123456</strong></p>
+              </>
+            )}
+            <Link to="/login" className="login-back">← Back to login options</Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,0 +1,237 @@
+import { useSearchParams, Link } from 'react-router-dom'
+import { useDashboardStore } from '../store/dashboardStore.jsx'
+import '../App.css'
+
+const PARTNER_TYPES = [
+  { value: 'organization', label: 'Organization' },
+  { value: 'collection_center', label: 'Collection Center' },
+  { value: 'processing_center', label: 'Processing Center' },
+  { value: 'diagnostic', label: 'Diagnostic' },
+]
+
+export default function Dashboard() {
+  const [searchParams] = useSearchParams()
+  const activeTab = searchParams.get('tab') || 'overview'
+  const { partners = [], clients = [], centers = [], benefits = [], packages = [] } = useDashboardStore()
+  const organizations = partners.filter((p) => p.partnerType === 'organization')
+
+  const getPartnerName = (id) => partners.find(p => p.id === id)?.name || '—'
+  const getClientName = (id) => clients.find(c => c.id === id)?.companyName || '—'
+
+  return (
+    <>
+      <header className="main-header">
+          <h2 className="page-title">
+            {activeTab === 'overview' && 'Overview (Command Centre)'}
+            {activeTab === 'organizations' && 'Manage Organizations'}
+            {activeTab === 'benefit' && 'Benefit'}
+            {activeTab === 'package' && 'Package'}
+            {activeTab === 'partners' && 'Manage Partners'}
+          </h2>
+          <p className="page-desc">
+            {activeTab === 'overview' && 'Real-time snapshot of the B2B business'}
+            {activeTab === 'organizations' && 'Organizations are partners with type Organization. Create opens partner creation.'}
+            {activeTab === 'benefit' && 'Benefit plans and configuration'}
+            {activeTab === 'package' && 'Test packages and pricing'}
+            {activeTab === 'partners' && 'Onboard and manage service partners'}
+          </p>
+        </header>
+
+        <div className="content">
+          {activeTab === 'overview' && (
+            <section className="overview-kpis">
+              <div className="kpi-card"><span className="kpi-value">{clients.length}</span><span className="kpi-label">Active Client Organizations</span></div>
+              <div className="kpi-card"><span className="kpi-value">{packages.length}</span><span className="kpi-label">Active Plans / Packages</span></div>
+              <div className="kpi-card"><span className="kpi-value">{partners.filter(p => p.status === 'active').length}</span><span className="kpi-label">Active Partners</span></div>
+              <div className="kpi-card"><span className="kpi-value">0</span><span className="kpi-label">Pending Approvals</span></div>
+              <div className="kpi-card"><span className="kpi-value">0</span><span className="kpi-label">Pending Offline Payments</span></div>
+              <div className="kpi-card"><span className="kpi-value">0</span><span className="kpi-label">Open Grievances</span></div>
+            </section>
+          )}
+
+          {activeTab === 'organizations' && (
+            <section className="panel">
+              <div className="panel-actions">
+                <Link to="/dashboard/partners/create" className="btn-primary" style={{ textDecoration: 'none' }}>+ Create</Link>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Organization ID</th>
+                      <th>Name</th>
+                      <th>Contact</th>
+                      <th>HR Email IDs</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {organizations.map((p) => (
+                      <tr key={p.id}>
+                        <td>{p.id}</td>
+                        <td><strong>{p.name}</strong></td>
+                        <td>{p.contact}</td>
+                        <td>{(p.hrEmails || []).length ? (p.hrEmails || []).join(', ') : '—'}</td>
+                        <td><span className={`badge ${p.status === 'active' ? 'badge-active' : 'badge-inactive'}`}>{p.status}</span></td>
+                        <td>
+                          <Link to={`/dashboard/partners/view/${p.id}`} className="action-icon" title="View" aria-label="View">👁</Link>
+                          <Link to={`/dashboard/partners/edit/${p.id}`} className="action-icon" title="Edit" aria-label="Edit">✎</Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'benefit' && (
+            <section className="panel">
+              <div className="panel-actions">
+                <Link to="/dashboard/benefit/create" className="btn-primary" style={{ textDecoration: 'none' }}>+ Create Benefit</Link>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Name</th>
+                      <th>Organization</th>
+                      <th>Type</th>
+                      <th>Loyalty</th>
+                      <th>Payment Type</th>
+                      <th>Status</th>
+                      <th>Start Date</th>
+                      <th>End Date</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {benefits.map((b) => (
+                      <tr key={b.id}>
+                        <td><strong>{b.id}</strong></td>
+                        <td><strong>{b.name}</strong></td>
+                        <td>{getClientName(b.clientId)}</td>
+                        <td>{b.type === 'combo' ? 'Combo' : b.type === 'pharma' ? 'Pharma' : b.type === 'health_care' ? 'Health Care' : b.type || '—'}</td>
+                        <td>{b.loyalty || '—'}</td>
+                        <td>{b.paymentType === 'employee_co_pay' ? 'Employee Co Pay' : b.paymentType === 'employer_co_pay' ? 'Employer Co Pay' : b.paymentType || '—'}</td>
+                        <td><span className={`badge ${(b.status || '').toLowerCase() === 'active' ? 'badge-active' : 'badge-inactive'}`}>{b.status}</span></td>
+                        <td>{b.startDate || '—'}</td>
+                        <td>{b.endDate || '—'}</td>
+                        <td>
+                          <Link to={`/dashboard/benefit/view/${b.id}`} className="action-icon" title="View" aria-label="View">👁</Link>
+                          <Link to={`/dashboard/benefit/edit/${b.id}`} className="action-icon" title="Edit" aria-label="Edit">✎</Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'package' && (
+            <section className="panel">
+              <div className="panel-actions">
+                <Link to="/dashboard/package/create" className="btn-primary" style={{ textDecoration: 'none' }}>+ Create Package</Link>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Package</th>
+                      <th>Client</th>
+                      <th>Tests</th>
+                      <th>Price</th>
+                      <th>Valid (months)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {packages.map(pk => (
+                      <tr key={pk.id}>
+                        <td><strong>{pk.name}</strong></td>
+                        <td>{getClientName(pk.clientId)}</td>
+                        <td>{pk.tests}</td>
+                        <td>{pk.price}</td>
+                        <td>{pk.validMonths}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {activeTab === 'partners' && (
+            <section className="panel">
+              <div className="panel-actions">
+                <Link to="/dashboard/partners/create" className="btn-primary" style={{ textDecoration: 'none' }}>+ Add Partner</Link>
+                <Link to="/dashboard/centers/create" className="btn-primary" style={{ background: 'var(--muted)', textDecoration: 'none' }}>+ Add Collection Center</Link>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Partner ID</th>
+                      <th>Partner Name</th>
+                      <th>Partner Type</th>
+                      <th>Contact</th>
+                      <th>HR Email IDs</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {partners.map(p => (
+                      <tr key={p.id}>
+                        <td>{p.id}</td>
+                        <td><strong>{p.name}</strong></td>
+                        <td>
+                          <span className="badge badge-third">
+                            {PARTNER_TYPES.find(t => t.value === p.partnerType)?.label || p.partnerType}
+                          </span>
+                        </td>
+                        <td>{p.contact}</td>
+                        <td>{p.partnerType === 'organization' ? ((p.hrEmails || []).length ? (p.hrEmails || []).join(', ') : '—') : '—'}</td>
+                        <td><span className={`badge ${p.status === 'active' ? 'badge-active' : 'badge-inactive'}`}>{p.status}</span></td>
+                        <td>
+                          <Link to={`/dashboard/partners/view/${p.id}`} className="action-icon" title="View" aria-label="View">👁</Link>
+                          <Link to={`/dashboard/partners/edit/${p.id}`} className="action-icon" title="Edit" aria-label="Edit">✎</Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="table-wrap" style={{ marginTop: '1.5rem' }}>
+                <h3 style={{ marginBottom: '0.75rem', fontSize: '1rem' }}>Collection Centers</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Center</th>
+                      <th>Partner</th>
+                      <th>City</th>
+                      <th>Address</th>
+                      <th>Slots</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {centers.map(c => (
+                      <tr key={c.id}>
+                        <td><strong>{c.name}</strong></td>
+                        <td>{getPartnerName(c.partnerId)}</td>
+                        <td>{c.city}</td>
+                        <td>{c.address}</td>
+                        <td>{c.slots}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+        </div>
+    </>
+  )
+}

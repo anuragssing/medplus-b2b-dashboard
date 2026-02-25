@@ -1,0 +1,433 @@
+import { useState, useEffect } from 'react'
+import { useNavigate, Link, useParams, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { useDashboardStore } from '../store/dashboardStore.jsx'
+
+const BENEFIT_TYPES = [
+  { value: 'pharma', label: 'Pharma' },
+  { value: 'health_care', label: 'Health Care' },
+  { value: 'combo', label: 'Combo' },
+]
+
+const LOYALTY_OPTIONS = [
+  { value: '1-loyalty one', label: '1-Loyalty One' },
+  { value: '2-loyalty two', label: '2-Loyalty Two' },
+  { value: '3-loyalty three', label: '3-Loyalty Three' },
+]
+
+const PAYMENT_TYPES = [
+  { value: 'Regular', label: 'Regular' },
+  { value: 'employee_co_pay', label: 'Employee Co Pay' },
+  { value: 'employer_co_pay', label: 'Employer Co Pay' },
+]
+
+const PRICE_ROW_TYPES = [
+  { value: 'primary', label: 'Primary' },
+  { value: 'free_addon', label: 'Free Add-on' },
+  { value: 'addon', label: 'Price Add-on' },
+]
+
+const MAX_PRICE_ROWS = 3
+
+function newPriceRow(overrides = {}) {
+  return {
+    id: Date.now() + Math.random(),
+    type: 'primary',
+    mrp: '',
+    price: '',
+    maxMembers: '',
+    ...overrides,
+  }
+}
+
+function priceConfigToRows(priceConfiguration) {
+  if (!Array.isArray(priceConfiguration) || priceConfiguration.length === 0) return []
+  const order = ['primary', 'free_addon', 'addon']
+  const rows = []
+  order.forEach((type) => {
+    const row = priceConfiguration.find((r) => r.type === type)
+    if (row) {
+      rows.push(newPriceRow({
+        type,
+        mrp: row.mrp ?? '',
+        price: row.price ?? '',
+        maxMembers: row.maxMembers ?? '',
+      }))
+    }
+  })
+  return rows
+}
+
+function CreateBenefit() {
+  const { id } = useParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const mode = location.pathname.includes('/view/') ? 'view' : location.pathname.includes('/edit/') ? 'edit' : 'create'
+  const { clients = [], benefits = [], partners = [], addBenefit, updateBenefit } = useDashboardStore()
+  const benefit = id ? benefits.find((b) => b.id === id) : null
+  const isAdmin = user?.type === 'bd_admin'
+  const [selectedOrgClientId, setSelectedOrgClientId] = useState(benefit?.clientId ?? '')
+  useEffect(() => { setSelectedOrgClientId(benefit?.clientId ?? '') }, [benefit?.clientId])
+  const selectedClient = selectedOrgClientId ? clients.find((c) => c.id === selectedOrgClientId) : null
+  const orgForBenefit = selectedClient ? partners.find((p) => p.id === selectedClient.partnerId) : null
+
+  const [benefitType, setBenefitType] = useState(benefit?.type ?? 'pharma')
+  const [priceRows, setPriceRows] = useState(() => (benefit?.priceConfiguration?.length ? priceConfigToRows(benefit.priceConfiguration) : []))
+  const [priceConfigError, setPriceConfigError] = useState('')
+  const [comboPharmaBenefitId, setComboPharmaBenefitId] = useState(benefit?.comboPharmaBenefitId ?? '')
+  const [comboHealthCareBenefitId, setComboHealthCareBenefitId] = useState(benefit?.comboHealthCareBenefitId ?? '')
+
+  const FORM_OPTIONS = [
+    { value: 'MRI', label: 'MRI' },
+    { value: 'Pathology', label: 'Pathology' },
+    { value: 'Todaco', label: 'Todaco' },
+  ]
+  function newDiscountRow(overrides = {}) {
+    return { id: Date.now() + Math.random(), form: '', value: '', ...overrides }
+  }
+  function discountConfigToRows(discountConfiguration) {
+    if (!Array.isArray(discountConfiguration) || discountConfiguration.length === 0) return []
+    return discountConfiguration.map((d) => newDiscountRow({ form: d.form ?? '', value: d.value ?? '' }))
+  }
+  const [discountRows, setDiscountRows] = useState(() => (benefit?.discountConfiguration?.length ? discountConfigToRows(benefit.discountConfiguration) : []))
+  const [discountForm, setDiscountForm] = useState('')
+  const [discountValue, setDiscountValue] = useState('')
+
+  const isView = mode === 'view'
+  const isEdit = mode === 'edit'
+  const readOnly = isView
+  const isCombo = benefitType === 'combo'
+  const isPharma = benefitType === 'pharma'
+  const isHealthCare = benefitType === 'health_care'
+
+  const pharmaBenefitsForOrg = benefits.filter((b) => b.type === 'pharma' && b.clientId === selectedOrgClientId && (b.status === 'Active' || b.status === 'active'))
+  const healthCareBenefitsForOrg = benefits.filter((b) => b.type === 'health_care' && b.clientId === selectedOrgClientId && (b.status === 'Active' || b.status === 'active'))
+
+  useEffect(() => {
+    if ((isView || isEdit) && id && !benefit) {
+      navigate('/dashboard?tab=benefit', { replace: true })
+    }
+  }, [id, benefit, isView, isEdit, navigate])
+
+  useEffect(() => {
+    setBenefitType(benefit?.type ?? 'pharma')
+    setComboPharmaBenefitId(benefit?.comboPharmaBenefitId ?? '')
+    setComboHealthCareBenefitId(benefit?.comboHealthCareBenefitId ?? '')
+    if (benefit?.priceConfiguration?.length) {
+      setPriceRows(priceConfigToRows(benefit.priceConfiguration))
+    }
+  }, [benefit?.id, benefit?.type, benefit?.priceConfiguration, benefit?.comboPharmaBenefitId, benefit?.comboHealthCareBenefitId])
+  useEffect(() => {
+    if (benefit?.discountConfiguration?.length) {
+      setDiscountRows(discountConfigToRows(benefit.discountConfiguration))
+    }
+  }, [benefit?.id, benefit?.discountConfiguration])
+
+  const addPriceRow = () => {
+    if (isPharma && priceRows.length >= 1) return
+    if (isHealthCare && priceRows.length >= MAX_PRICE_ROWS) return
+    if (isPharma) {
+      setPriceRows((prev) => (prev.length === 0 ? [newPriceRow({ type: 'primary' })] : prev))
+      setPriceConfigError('')
+      return
+    }
+    const used = new Set(priceRows.map((r) => r.type))
+    const nextType = ['primary', 'free_addon', 'addon'].find((t) => !used.has(t)) || 'primary'
+    setPriceRows((prev) => [...prev, newPriceRow({ type: nextType })])
+    setPriceConfigError('')
+  }
+  const removePriceRow = (rowId) => {
+    setPriceRows((prev) => prev.filter((r) => r.id !== rowId))
+    setPriceConfigError('')
+  }
+  const updatePriceRow = (rowId, field, value) => {
+    setPriceRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, [field]: value } : r)))
+    setPriceConfigError('')
+  }
+
+  const addOrUpdateDiscountRow = () => {
+    const form = (discountForm || '').trim()
+    const val = Number(discountValue)
+    if (!form || discountValue === '' || isNaN(val) || val < 0 || val > 100) return
+    setDiscountRows((prev) => {
+      const existing = prev.find((r) => (r.form || '').trim() === form)
+      if (existing) {
+        return prev.map((r) => (r.id === existing.id ? { ...r, value: discountValue } : r))
+      }
+      return [...prev, newDiscountRow({ form, value: discountValue })]
+    })
+    setDiscountValue('')
+  }
+  const removeDiscountRow = (rowId) => {
+    setDiscountRows((prev) => prev.filter((r) => r.id !== rowId))
+  }
+  const updateDiscountRow = (rowId, field, value) => {
+    setDiscountRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, [field]: value } : r)))
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    const fd = new FormData(e.target)
+    const type = fd.get('benefit_type') || benefitType
+
+    if (type === 'combo') {
+      if (!comboPharmaBenefitId || !comboHealthCareBenefitId) {
+        setPriceConfigError('Please select both a Pharma benefit and a Health Care benefit for the combo.')
+        return
+      }
+      const payload = {
+        name: fd.get('benefit_name') || '',
+        status: fd.get('benefit_status') === 'Inactive' ? 'Inactive' : 'Active',
+        clientId: fd.get('benefit_organization') || '',
+        type: 'combo',
+        comboPharmaBenefitId,
+        comboHealthCareBenefitId,
+        priceConfiguration: [],
+        primaryPrice: 0,
+        addOnPrice: 0,
+      }
+      if (isEdit && id) {
+        updateBenefit(id, payload)
+        navigate('/dashboard?tab=benefit', { replace: true })
+      } else {
+        addBenefit(payload)
+        navigate('/dashboard?tab=benefit', { replace: true })
+      }
+      return
+    }
+
+    setPriceConfigError('')
+    if (type === 'pharma') {
+      const primaryCount = priceRows.filter((r) => r.type === 'primary').length
+      if (primaryCount !== 1) {
+        setPriceConfigError('Pharma benefit must have exactly one Primary row in Price Configuration.')
+        return
+      }
+    } else {
+      const primaryCount = priceRows.filter((r) => r.type === 'primary').length
+      const freeAddonCount = priceRows.filter((r) => r.type === 'free_addon').length
+      const addonCount = priceRows.filter((r) => r.type === 'addon').length
+      if (primaryCount !== 1 || freeAddonCount !== 1 || addonCount !== 1) {
+        setPriceConfigError('Health Care must have exactly one Primary, one Free Add-on, and one Price Add-on row.')
+        return
+      }
+    }
+
+    const priceConfiguration = priceRows.map((row) => {
+      if (row.type === 'primary') {
+        return { type: 'primary', mrp: Number(row.mrp) || 0, price: Number(row.price) || 0 }
+      }
+      if (row.type === 'free_addon') {
+        return { type: 'free_addon', maxMembers: Number(row.maxMembers) || undefined }
+      }
+      return { type: 'addon', mrp: Number(row.mrp) || 0, price: Number(row.price) || 0, maxMembers: Number(row.maxMembers) || undefined }
+    })
+    const discountConfiguration = discountRows
+      .filter((r) => (r.form || '').trim() && r.value !== '' && !isNaN(Number(r.value)))
+      .map((r) => ({ form: (r.form || '').trim(), value: Number(r.value) }))
+    const payload = {
+      name: fd.get('benefit_name') || '',
+      status: fd.get('benefit_status') === 'Inactive' ? 'Inactive' : 'Active',
+      clientId: fd.get('benefit_organization') || '',
+      type,
+      loyalty: fd.get('benefit_loyalty') || '',
+      paymentType: fd.get('benefit_paymentType') || 'Regular',
+      description: fd.get('benefit_description') || '',
+      priceConfiguration,
+      discountConfiguration,
+      startDate: fd.get('benefit_startDate') || '',
+      endDate: fd.get('benefit_endDate') || '',
+    }
+    if (isEdit && id) {
+      updateBenefit(id, payload)
+      navigate('/dashboard?tab=benefit', { replace: true })
+    } else {
+      addBenefit(payload)
+      navigate('/dashboard?tab=benefit', { replace: true })
+    }
+  }
+
+  const backLink = '/dashboard?tab=benefit'
+  const title = isView ? 'View Benefit' : isEdit ? 'Edit Benefit' : 'Benefit Registration'
+  const desc = isView ? 'Benefit details (read-only).' : isEdit ? 'Update benefit details below.' : 'Fill in the details below to register a new benefit. ID is auto-generated and shown on the dashboard.'
+
+  return (
+    <>
+      <header className="main-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.25rem' }}>
+          <Link to={backLink} className="btn-secondary" style={{ textDecoration: 'none' }}>← Back to Dashboard</Link>
+        </div>
+        <h2 className="page-title">{title}</h2>
+        {isAdmin && (
+          <p className="page-desc" style={{ marginBottom: '0.25rem' }}>
+            Organization: {orgForBenefit ? `${orgForBenefit.name} (ID: ${orgForBenefit.id})` : 'Select organization from dropdown below.'}
+          </p>
+        )}
+        <p className="page-desc">{desc}</p>
+      </header>
+      <div className="content">
+        <section className="panel">
+          <form className="form form-modal" onSubmit={handleSubmit} autoComplete="off">
+            <div className="form-section">
+              <h4 className="form-section-title form-section-title-accent">Basic Details</h4>
+              <div className="form-row form-row-1">
+                <label>Name <input name="benefit_name" type="text" placeholder="e.g. Corporate Gold" required readOnly={readOnly} defaultValue={benefit?.name} /></label>
+              </div>
+              <div className="form-row form-row-3">
+                <label>Status <select name="benefit_status" disabled={readOnly} defaultValue={benefit?.status}>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select></label>
+                <label>Organization <select name="benefit_organization" required disabled={readOnly} value={selectedOrgClientId} onChange={(e) => !readOnly && setSelectedOrgClientId(e.target.value)}>
+                  <option value="">Select an Organization</option>
+                  {clients.map((c) => <option key={c.id} value={c.id}>{c.companyName}</option>)}</select></label>
+                <label>Type <select name="benefit_type" disabled={readOnly} value={benefitType} onChange={(e) => !readOnly && setBenefitType(e.target.value)}>{BENEFIT_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></label>
+              </div>
+
+              {isCombo && (
+                <>
+                  {priceConfigError && <p className="form-error" style={{ color: 'var(--error, #c00)', marginBottom: '0.75rem' }}>{priceConfigError}</p>}
+                  {selectedOrgClientId && (
+                    <div className="form-row form-row-3" style={{ marginTop: '1rem' }}>
+                      <label>Pharma benefit <select value={comboPharmaBenefitId} onChange={(e) => setComboPharmaBenefitId(e.target.value)} disabled={readOnly}>
+                        <option value="">Select pharma benefit</option>
+                        {pharmaBenefitsForOrg.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select></label>
+                      <label>Health Care benefit <select value={comboHealthCareBenefitId} onChange={(e) => setComboHealthCareBenefitId(e.target.value)} disabled={readOnly}>
+                        <option value="">Select health care benefit</option>
+                        {healthCareBenefitsForOrg.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select></label>
+                      <label />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {!isCombo && (
+                <>
+                  <div className="form-row form-row-3">
+                    <label>Loyalty <select name="benefit_loyalty" disabled={readOnly} defaultValue={benefit?.loyalty}>{LOYALTY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
+                    <label>Payment Type <select name="benefit_paymentType" disabled={readOnly} defaultValue={benefit?.paymentType}>{PAYMENT_TYPES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}</select></label>
+                    <label>Description <textarea name="benefit_description" rows={2} placeholder="Describe benefits..." readOnly={readOnly} defaultValue={benefit?.description} /></label>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {!isCombo && (
+              <>
+                <div className="form-section">
+                  <div className="member-config-header">
+                    <h4 className="form-section-title form-section-title-accent">Price Configuration</h4>
+                    {!readOnly && (isPharma ? priceRows.length < 1 : priceRows.length < MAX_PRICE_ROWS) && (
+                      <button type="button" className="btn-add-row" onClick={addPriceRow}>+ Add Row</button>
+                    )}
+                  </div>
+                  <p className="form-hint" style={{ marginBottom: '0.75rem' }}>
+                    {isPharma ? 'Pharma: add one row — Primary (MRP, Price) only.' : 'Health Care: add up to 3 rows — exactly one Primary, one Free Add-on, one Price Add-on.'}
+                  </p>
+                  {priceConfigError && <p className="form-error" style={{ color: 'var(--error, #c00)', marginBottom: '0.75rem' }}>{priceConfigError}</p>}
+                  <div className="table-wrap">
+                    <table className="member-config-table price-config-table">
+                      <thead>
+                        <tr>
+                          <th>Type</th>
+                          <th>MRP (₹)</th>
+                          <th>Price (₹)</th>
+                          <th>Max Members</th>
+                          {!readOnly && <th></th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {priceRows.length === 0 ? (
+                          <tr><td colSpan={5} className="request-table-empty">No rows. Click &quot;Add Row&quot; to add {isPharma ? 'Primary' : 'Primary, Free Add-on, or Price Add-on'}.</td></tr>
+                        ) : (
+                          priceRows.map((row) => (
+                            <tr key={row.id}>
+                              <td>
+                                <select value={row.type} onChange={(e) => updatePriceRow(row.id, 'type', e.target.value)} disabled={readOnly || isPharma}>
+                                  {(isPharma ? PRICE_ROW_TYPES.filter((t) => t.value === 'primary') : PRICE_ROW_TYPES).map((t) => (
+                                    <option key={t.value} value={t.value}>{t.label}</option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td>{row.type === 'primary' || row.type === 'addon' ? <input type="number" min={0} value={row.mrp} onChange={(e) => updatePriceRow(row.id, 'mrp', e.target.value)} placeholder="0" readOnly={readOnly} /> : '—'}</td>
+                              <td>{row.type === 'primary' || row.type === 'addon' ? <input type="number" min={0} value={row.price} onChange={(e) => updatePriceRow(row.id, 'price', e.target.value)} placeholder="0" readOnly={readOnly} /> : '—'}</td>
+                              <td>{row.type === 'free_addon' || row.type === 'addon' ? <input type="number" min={0} value={row.maxMembers} onChange={(e) => updatePriceRow(row.id, 'maxMembers', e.target.value)} placeholder="0" readOnly={readOnly} /> : '—'}</td>
+                              {!readOnly && <td><button type="button" className="btn-delete-row" onClick={() => removePriceRow(row.id)} title="Delete row">Delete</button></td>}
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="form-section">
+                  <h4 className="form-section-title form-section-title-accent">Discount Configuration</h4>
+                  <div className="form-row form-row-3" style={{ alignItems: 'flex-end', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <label>
+                      Form
+                      <select value={discountForm} onChange={(e) => setDiscountForm(e.target.value)} disabled={readOnly} style={{ marginTop: '0.35rem' }}>
+                        <option value="">Select form</option>
+                        {FORM_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    </label>
+                    <label>
+                      Discount (%)
+                      <input type="number" min={0} max={100} step={0.01} value={discountValue} onChange={(e) => setDiscountValue(e.target.value)} placeholder="e.g. 20" readOnly={readOnly} style={{ marginTop: '0.35rem', width: '6rem' }} />
+                    </label>
+                    {!readOnly && <button type="button" className="btn-add-row" onClick={addOrUpdateDiscountRow}>Add / Update</button>}
+                  </div>
+                  <div className="table-wrap" style={{ marginTop: '1rem' }}>
+                    <table className="member-config-table price-config-table">
+                      <thead>
+                        <tr>
+                          <th>Form</th>
+                          <th>Discount %</th>
+                          {!readOnly && <th>Action</th>}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {discountRows.length === 0 ? (
+                          <tr><td colSpan={3} className="request-table-empty">No discount configured. Select form, enter percentage and click Add / Update.</td></tr>
+                        ) : (
+                          discountRows.map((row) => (
+                            <tr key={row.id}>
+                              <td>{row.form}</td>
+                              <td>
+                                <input type="number" min={0} max={100} step={0.01} value={row.value} onChange={(e) => updateDiscountRow(row.id, 'value', e.target.value)} placeholder="0" readOnly={readOnly} style={{ width: '5rem' }} /> %
+                              </td>
+                              {!readOnly && <td><button type="button" className="btn-delete-row" onClick={() => removeDiscountRow(row.id)} title="Delete">Delete</button></td>}
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="form-section">
+                  <h4 className="form-section-title form-section-title-accent">Validity</h4>
+                  <div className="form-row form-row-3">
+                    <label>Start Date <input name="benefit_startDate" type="date" readOnly={readOnly} defaultValue={benefit?.startDate} /></label>
+                    <label>End Date <input name="benefit_endDate" type="date" readOnly={readOnly} defaultValue={benefit?.endDate} /></label>
+                    <label />
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="form-section-actions" style={{ marginTop: '1.5rem', display: 'flex', gap: '0.75rem' }}>
+              <Link to={backLink} className="btn-secondary" style={{ textDecoration: 'none' }}>Cancel</Link>
+              {!readOnly && <button type="submit" className="btn-primary">{isEdit ? 'Update Benefit' : 'Create Benefit'}</button>}
+            </div>
+          </form>
+        </section>
+      </div>
+    </>
+  )
+}
+
+export default CreateBenefit

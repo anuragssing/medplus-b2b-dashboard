@@ -28,6 +28,7 @@ const CreateTest = lazy(() => import('./pages/CreateTest'))
 const TestCenterMapping = lazy(() => import('./pages/TestCenterMapping'))
 const SlotConfiguration = lazy(() => import('./pages/SlotConfiguration'))
 const CityCatalogue = lazy(() => import('./pages/CityCatalogue'))
+const CityCatalogueDetail = lazy(() => import('./pages/CityCatalogueDetail'))
 const AvailableSlots = lazy(() => import('./pages/AvailableSlots'))
 
 function App() {
@@ -82,7 +83,8 @@ function App() {
             <Route path="tests/upload" element={<CreateTest />} />
             <Route path="tests/mapping" element={<TestCenterMapping />} />
             <Route path="slots/config" element={<SlotConfiguration />} />
-            <Route path="catalogues" element={<CityCatalogue />} />
+            <Route path="city-catalogues" element={<CityCatalogue />} />
+            <Route path="city-catalogues/:catalogueId" element={<CityCatalogueDetail />} />
             <Route path="available-slots" element={<AvailableSlots />} />
           </Route>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

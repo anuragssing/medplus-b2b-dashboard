@@ -12,7 +12,7 @@ const NAV_ADMIN = [
     { id: 'test-creation', label: 'Test Creation', path: '/dashboard/tests/upload' },
     { id: 'test-mapping', label: 'Center Mapping', path: '/dashboard/tests/mapping' },
     { id: 'slot-config', label: 'Slot Configuration', path: '/dashboard/slots/config' },
-    { id: 'city-catalogue', label: 'City Catalogues', path: '/dashboard/catalogues' },
+    { id: 'city-catalogue', label: 'City Catalogues', path: '/dashboard/city-catalogues' },
   ]},
   { id: 'summary', label: 'Organization Summary', path: '/dashboard/summary', children: null },
   { id: 'available-slots', label: 'Slots Dashboard', path: '/dashboard/available-slots', children: null },
@@ -55,7 +55,7 @@ function getExpandedNav(pathname, search, navStructure) {
   const tab = new URLSearchParams(search).get('tab')
   for (const item of navStructure) {
     if (!item.children) continue
-    if (item.id === 'partners' && (pathname.startsWith('/dashboard/partners') || pathname.startsWith('/dashboard/centers') || pathname.startsWith('/dashboard/tests') || pathname.startsWith('/dashboard/slots') || pathname.startsWith('/dashboard/catalogues') || tab === 'partners')) return 'partners'
+    if (item.id === 'partners' && (pathname.startsWith('/dashboard/partners') || pathname.startsWith('/dashboard/centers') || pathname.startsWith('/dashboard/tests') || pathname.startsWith('/dashboard/slots') || pathname.startsWith('/dashboard/city-catalogues') || tab === 'partners')) return 'partners'
     if (item.id === 'benefit' && (pathname.startsWith('/dashboard/benefit') || tab === 'benefit')) return 'benefit'
     if (item.id === 'package' && (pathname.startsWith('/dashboard/package') || tab === 'package')) return 'package'
   }

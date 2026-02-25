@@ -111,7 +111,7 @@ export default function CityCatalogue() {
                           <tr key={c.id}>
                             <td>
                               <span
-                                onClick={() => navigate(`/city-catalogues/${c.id}`)}
+                                onClick={() => navigate(`/dashboard/city-catalogues/${c.id}`)}
                                 style={{
                                   cursor: 'pointer',
                                   color: 'var(--accent)',

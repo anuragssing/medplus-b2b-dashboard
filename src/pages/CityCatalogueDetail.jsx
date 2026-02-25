@@ -24,7 +24,7 @@ export default function CityCatalogueDetail() {
               <div className="test-catalog-empty">
                 <span>❌</span>
                 <p>The requested catalogue could not be found.</p>
-                <button onClick={() => navigate('/city-catalogues')} className="btn-primary" style={{ marginTop: '1rem' }}>
+                <button onClick={() => navigate('/dashboard/city-catalogues')} className="btn-primary" style={{ marginTop: '1rem' }}>
                   Back to Catalogues
                 </button>
               </div>
@@ -42,7 +42,7 @@ export default function CityCatalogueDetail() {
       <header className="main-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
           <button
-            onClick={() => navigate('/city-catalogues')}
+            onClick={() => navigate('/dashboard/city-catalogues')}
             className="btn-secondary"
             style={{ padding: '0.5rem 1rem' }}
           >

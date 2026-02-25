@@ -39,9 +39,6 @@ export default function CityCatalogue() {
       </header>
       <div className="content">
         <section className="panel">
-          <div className="panel-header">
-            <h3 className="panel-title">City Catalogues</h3>
-          </div>
           <div className="panel-body">
               {/* Info Banner */}
               <div style={{

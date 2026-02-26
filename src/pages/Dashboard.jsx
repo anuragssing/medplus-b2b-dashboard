@@ -195,9 +195,16 @@ export default function Dashboard() {
 
           {activeTab === 'clients-vendors' && (
             <section className="panel">
-              <div className="panel-tabs request-dashboard-main-tabs" style={{ marginBottom: '1rem' }}>
-                <button type="button" className={`panel-tab ${clientsVendorsSubTab === 'clients' ? 'active' : ''}`} onClick={() => setClientsVendorsSubTab('clients')}>Clients</button>
-                <button type="button" className={`panel-tab ${clientsVendorsSubTab === 'vendors' ? 'active' : ''}`} onClick={() => setClientsVendorsSubTab('vendors')}>Vendors</button>
+              <div className="panel-tabs request-dashboard-main-tabs" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div style={{ display: 'flex' }}>
+                  <button type="button" className={`panel-tab ${clientsVendorsSubTab === 'clients' ? 'active' : ''}`} onClick={() => setClientsVendorsSubTab('clients')}>Clients</button>
+                  <button type="button" className={`panel-tab ${clientsVendorsSubTab === 'vendors' ? 'active' : ''}`} onClick={() => setClientsVendorsSubTab('vendors')}>Vendors</button>
+                </div>
+                {clientsVendorsSubTab === 'clients' ? (
+                  <Link to="/dashboard/clients/create" className="btn-primary" style={{ textDecoration: 'none' }}>+ Create Client</Link>
+                ) : (
+                  <Link to="/dashboard/vendors/create" className="btn-primary" style={{ textDecoration: 'none' }}>+ Create Vendor</Link>
+                )}
               </div>
               {clientsVendorsSubTab === 'clients' && (
                 <div className="table-wrap">

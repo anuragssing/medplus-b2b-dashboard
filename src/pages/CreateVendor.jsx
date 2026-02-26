@@ -25,6 +25,11 @@ export default function CreateVendor() {
   const { partners = [], vendors = [], addVendor, updateVendor } = useDashboardStore()
   const thirdPartyPartners = partners.filter((p) => p.partnerType === 'third_party_partner')
   const vendor = id ? (vendors || []).find((v) => v.id === id) : null
+  // One vendor per partner: in create mode only show partners that don't already have a vendor
+  const partnersWithVendor = (vendors || []).map((v) => v.partnerId)
+  const availablePartnersForVendor = isCreate
+    ? thirdPartyPartners.filter((p) => !partnersWithVendor.includes(p.id))
+    : thirdPartyPartners
 
   const [partnerId, setPartnerId] = useState('')
   const [vendorName, setVendorName] = useState('')
@@ -57,6 +62,7 @@ export default function CreateVendor() {
   }, [id, vendor, isView, isEdit, navigate])
 
   const selectedPartner = partnerId ? thirdPartyPartners.find((p) => p.id === partnerId) : null
+  const partnerAddress = selectedPartner?.addresses?.find((a) => a.isPrimary) || selectedPartner?.addresses?.[0] || null
 
   useEffect(() => {
     if (isCreate && selectedPartner) {
@@ -131,6 +137,10 @@ export default function CreateVendor() {
       alert('Please select a partner.')
       return
     }
+    if (partnersWithVendor.includes(partnerId)) {
+      alert('This partner already has a vendor. Each partner can have only one vendor.')
+      return
+    }
     if (!(vendorName && vendorName.trim())) {
       alert('Vendor Name is mandatory.')
       return
@@ -197,12 +207,15 @@ export default function CreateVendor() {
               <div className="form-row form-row-2">
                 <label>Partner * <select name="partner_id" required value={partnerId} onChange={(e) => setPartnerId(e.target.value)} disabled={readOnlyAll || readOnlyPartnerAndName}>
                   <option value="">Select Third Party Partner...</option>
-                  {thirdPartyPartners.map((p) => (
+                  {availablePartnersForVendor.map((p) => (
                     <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
                   ))}
                 </select></label>
                 <label>Vendor Name * <input name="vendor_name" type="text" required value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="Vendor name" readOnly={readOnlyAll || readOnlyPartnerAndName} disabled={readOnlyAll || readOnlyPartnerAndName} style={(readOnlyAll || readOnlyPartnerAndName) ? { backgroundColor: '#f5f5f5' } : undefined} /></label>
               </div>
+              {isCreate && availablePartnersForVendor.length === 0 && (
+                <p className="form-hint" style={{ color: 'var(--bs-warning)', marginBottom: '0.5rem' }}>No partners available. Each partner can have only one vendor; all third party partners already have a vendor.</p>
+              )}
               <div className="form-row form-row-2">
                 <label>Type * <select name="vendor_type" required value={vendorType} onChange={(e) => setVendorType(e.target.value)} disabled={readOnlyAll || isEdit}>
                   <option value="">Select type...</option>
@@ -224,6 +237,23 @@ export default function CreateVendor() {
                 <label>Phone Number * <input name="contact_phone" type="tel" inputMode="numeric" maxLength={PHONE_LENGTH} required value={contactPhone} onChange={(e) => setContactPhone(e.target.value.replace(/\D/g, '').slice(0, PHONE_LENGTH))} placeholder="10-digit number" readOnly={readOnlyAll} disabled={readOnlyAll} style={readOnlyAll ? { backgroundColor: '#f5f5f5' } : undefined} /></label>
               </div>
             </div>
+            {selectedPartner && (
+              <div className="form-section">
+                <h4 className="form-section-title">| Partner Address</h4>
+                <div className="form-row form-row-2">
+                  <label>Address label <input type="text" readOnly disabled value={partnerAddress?.addressLabel ?? '—'} style={{ backgroundColor: '#f5f5f5' }} /></label>
+                  <label>Address <input type="text" readOnly disabled value={partnerAddress?.address ?? '—'} style={{ backgroundColor: '#f5f5f5' }} /></label>
+                </div>
+                <div className="form-row form-row-3">
+                  <label>City <input type="text" readOnly disabled value={partnerAddress?.city ?? '—'} style={{ backgroundColor: '#f5f5f5' }} /></label>
+                  <label>State <input type="text" readOnly disabled value={partnerAddress?.state ?? '—'} style={{ backgroundColor: '#f5f5f5' }} /></label>
+                  <label>Pincode <input type="text" readOnly disabled value={partnerAddress?.pincode ?? '—'} style={{ backgroundColor: '#f5f5f5' }} /></label>
+                </div>
+                <div className="form-row form-row-2">
+                  <label>Country <input type="text" readOnly disabled value={partnerAddress?.country ?? '—'} style={{ backgroundColor: '#f5f5f5' }} /></label>
+                </div>
+              </div>
+            )}
             <div className="form-section">
               <h4 className="form-section-title">| Login Email IDs</h4>
               <div className="login-email-add-row">

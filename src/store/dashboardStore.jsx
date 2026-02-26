@@ -27,6 +27,11 @@ const initialPartners = [
   { id: 'p2', name: 'Vijaya & Medquest Partner', partnerType: 'third_party_partner', contact: 'partners@vijayamedquest.com', phone: '9876543200', status: 'active', addresses: [defaultAddress('addr-p2', 'Head Office', 'Central Hub', 'Bangalore', 'Karnataka', '560001')] },
   { id: 'p4', name: 'HealthLabs Partner', partnerType: 'third_party_partner', contact: 'contact@healthlabs.com', phone: '9876543201', status: 'active', addresses: [defaultAddress('addr-p4', 'Main Lab', 'Sector 62', 'Noida', 'Uttar Pradesh', '201309')] },
   { id: 'p8', name: 'QuickCollect Partner', partnerType: 'third_party_partner', contact: 'info@quickcollect.com', phone: '9876543202', status: 'active', addresses: [defaultAddress('addr-p8', 'Collection Hub', 'Bandra East', 'Mumbai', 'Maharashtra', '400051')] },
+  { id: 'p9', name: 'PathLabs Partner', partnerType: 'third_party_partner', contact: 'bd@pathlabs.com', phone: '9876543203', status: 'active', addresses: [defaultAddress('addr-p9', 'Central Lab', 'MG Road', 'Chennai', 'Tamil Nadu', '600001')] },
+  { id: 'p10', name: 'MedScan Partner', partnerType: 'third_party_partner', contact: 'contact@medscan.com', phone: '9876543204', status: 'active', addresses: [defaultAddress('addr-p10', 'Diagnostic Center', 'Jubilee Hills', 'Hyderabad', 'Telangana', '500033')] },
+  { id: 'p11', name: 'CareCollect Partner', partnerType: 'third_party_partner', contact: 'info@carecollect.com', phone: '9876543205', status: 'active', addresses: [defaultAddress('addr-p11', 'Collection Unit', 'Salt Lake', 'Kolkata', 'West Bengal', '700091')] },
+  { id: 'p12', name: 'Wellness Labs Partner', partnerType: 'third_party_partner', contact: 'partners@wellnesslabs.com', phone: '9876543206', status: 'active', addresses: [defaultAddress('addr-p12', 'Wellness Hub', 'Viman Nagar', 'Pune', 'Maharashtra', '411014')] },
+  { id: 'p13', name: 'City Diagnostics Partner', partnerType: 'third_party_partner', contact: 'bd@citydiagnostics.com', phone: '9876543207', status: 'active', addresses: [defaultAddress('addr-p13', 'City Lab', 'Anna Nagar', 'Chennai', 'Tamil Nadu', '600040')] },
 ]
 
 const initialVendors = [

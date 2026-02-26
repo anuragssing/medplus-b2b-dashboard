@@ -8,9 +8,21 @@ import '../App.css'
 
 const PARTNER_TYPES_WITH_TESTS = ['diagnostic', 'collection_center', 'processing_center']
 
+const ITEM_TYPES = [
+  { value: 'test', label: 'Test' },
+  { value: 'profile', label: 'Profile' }
+]
+
+const GENDER_OPTIONS = [
+  { value: 'both', label: 'Both' },
+  { value: 'male', label: 'Male Only' },
+  { value: 'female', label: 'Female Only' }
+]
+
 const TEMPLATE_HEADERS = [
-  'Test Name', 'Category', 'Parameters (comma separated)',
-  'MRP (₹)', 'Partner Price (₹)', 'TAT', 'Sample Type', 'Home Collection (Yes/No)', 'Form Type', 'Status (active/inactive)',
+  'Type (test/profile)', 'Name', 'Category', 'Parameters (comma separated)',
+  'MRP (₹)', 'Partner Price (₹)', 'TAT', 'Sample Type', 'Home Collection (Yes/No)',
+  'Form Type', 'Gender (both/male/female)', 'Included Items (comma separated codes)', 'Status (active/inactive)',
 ]
 
 export default function CreateTest() {
@@ -45,18 +57,17 @@ export default function CreateTest() {
   const downloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([
       TEMPLATE_HEADERS,
-      ['Complete Blood Count', 'Haematology', 'Hemoglobin, WBC, RBC', 600, 450, '6 hours', 'Blood', 'Yes', 'PATHOLOGY', 'active'],
-      ['Lipid Profile', 'Biochemistry', 'Total Cholesterol, HDL, LDL', 900, 700, '12 hours', 'Blood', 'Yes', 'PATHOLOGY', 'active'],
-      ['Chest X-Ray', 'Radiology', 'PA View, Lateral View', 800, 600, '2 hours', 'N/A', 'No', 'X-RAY', 'active'],
-      ['Brain MRI', 'Imaging', 'T1, T2, FLAIR sequences', 8000, 6500, '24 hours', 'N/A', 'No', 'MRI', 'active'],
-      ['CT Scan Abdomen', 'Imaging', 'Plain and Contrast', 5000, 4000, '12 hours', 'N/A', 'No', 'CT SCAN', 'active'],
-      ['Ultrasound Abdomen', 'Imaging', 'Liver, Kidney, Spleen', 1200, 900, '4 hours', 'N/A', 'No', 'ULTRASOUND', 'active'],
-      ['Electrocardiogram', 'Cardiology', '12 Lead ECG', 300, 200, '1 hour', 'N/A', 'Yes', 'ECG', 'active'],
-      ['2D Echocardiography', 'Cardiology', 'Doppler Study', 2000, 1500, '6 hours', 'N/A', 'No', '2D ECHO', 'active'],
+      ['test', 'Complete Blood Count', 'Haematology', 'Hemoglobin, WBC, RBC', 600, 450, '6 hours', 'Blood', 'Yes', 'PATHOLOGY', 'both', '', 'active'],
+      ['test', 'Lipid Profile', 'Biochemistry', 'Total Cholesterol, HDL, LDL', 900, 700, '12 hours', 'Blood', 'Yes', 'PATHOLOGY', 'both', '', 'active'],
+      ['test', 'PSA Test', 'Oncology', 'Prostate Specific Antigen', 1200, 950, '24 hours', 'Blood', 'Yes', 'PATHOLOGY', 'male', '', 'active'],
+      ['test', 'Pap Smear', 'Gynecology', 'Cervical Cancer Screening', 800, 600, '48 hours', 'Cervical Cells', 'No', 'PATHOLOGY', 'female', '', 'active'],
+      ['profile', 'Health Checkup Basic', 'Preventive', 'Comprehensive basic health screening', 2500, 2000, '24 hours', 'Blood', 'Yes', 'PATHOLOGY', 'both', 'TEST-p2-001,TEST-p2-002', 'active'],
+      ['profile', 'Men\'s Health Package', 'Preventive', 'Complete health screening for men', 3500, 2800, '24 hours', 'Blood', 'Yes', 'PATHOLOGY', 'male', 'TEST-p2-001,TEST-p2-002,TEST-p2-003', 'active'],
+      ['profile', 'Women\'s Health Package', 'Preventive', 'Complete health screening for women', 3500, 2800, '48 hours', 'Blood', 'Yes', 'PATHOLOGY', 'female', 'TEST-p2-001,TEST-p2-002,TEST-p2-004', 'active'],
     ])
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Tests Template')
-    XLSX.writeFile(wb, 'test_upload_template.xlsx')
+    XLSX.utils.book_append_sheet(wb, ws, 'Tests & Profiles Template')
+    XLSX.writeFile(wb, 'test_profile_upload_template.xlsx')
   }
 
   const parseExcel = (f) => {
@@ -71,20 +82,26 @@ export default function CreateTest() {
           .slice(1)
           .filter((row) => row.length >= 4 && row[0])
           .map((row) => {
-            const formTypeValue = String(row[8] || '').trim()
+            const itemType = String(row[0] || 'test').trim().toLowerCase()
+            const formTypeValue = String(row[9] || '').trim()
             const isValidFormType = formTypes.length === 0 || formTypes.includes(formTypeValue) || formTypeValue === ''
+            const genderValue = String(row[10] || 'both').trim().toLowerCase()
+            const includedItems = String(row[11] || '').trim()
 
             return {
-              testName: String(row[0] || '').trim(),
-              category: String(row[1] || '').trim(),
-              parameters: String(row[2] || '').trim(),
-              mrp: Number(row[3]) || 0,
-              price: Number(row[4]) || 0,
-              tat: String(row[5] || '').trim(),
-              sampleType: String(row[6] || '').trim(),
-              homeCollection: String(row[7] || '').toLowerCase() === 'yes',
+              type: itemType === 'profile' ? 'profile' : 'test',
+              testName: String(row[1] || '').trim(),
+              category: String(row[2] || '').trim(),
+              parameters: String(row[3] || '').trim(),
+              mrp: Number(row[4]) || 0,
+              price: Number(row[5]) || 0,
+              tat: String(row[6] || '').trim(),
+              sampleType: String(row[7] || '').trim(),
+              homeCollection: String(row[8] || '').toLowerCase() === 'yes',
               formType: formTypeValue,
-              status: String(row[9] || 'active').trim().toLowerCase(),
+              gender: ['both', 'male', 'female'].includes(genderValue) ? genderValue : 'both',
+              composition: includedItems ? includedItems.split(',').map(code => code.trim()).filter(Boolean) : [],
+              status: String(row[12] || 'active').trim().toLowerCase(),
               hasInvalidFormType: !isValidFormType,
             }
           })
@@ -118,15 +135,16 @@ export default function CreateTest() {
     const newTests = validRows.map((row, i) => {
       const { hasInvalidFormType, ...testData } = row // Remove validation flag
 
-      // Auto-generate test code based on partner ID and timestamp
-      const testCode = `TEST-${selectedPartnerId}-${timestamp}-${i}`
+      // Auto-generate test code based on partner ID, type, and timestamp
+      const prefix = row.type === 'profile' ? 'PROFILE' : 'TEST'
+      const testCode = `${prefix}-${selectedPartnerId}-${timestamp}-${i}`
 
       return {
         ...testData,
         testCode, // Auto-generated test code
-        id: 't' + timestamp + i,
+        id: (row.type === 'profile' ? 'prof' : 't') + timestamp + i,
         partnerId: selectedPartnerId,
-        // status is already in row from Excel parsing
+        // type, gender, composition, and status are already in row from Excel parsing
       }
     })
     addTests(newTests)
@@ -135,6 +153,10 @@ export default function CreateTest() {
     setUploadSuccess(true)
     if (fileInputRef.current) fileInputRef.current.value = ''
     setActiveTab('catalog')
+
+    const testCount = newTests.filter(t => t.type === 'test').length
+    const profileCount = newTests.filter(t => t.type === 'profile').length
+    toast.success(`Successfully uploaded ${testCount} test(s) and ${profileCount} profile(s)!`)
   }
 
   const handleClear = () => {
@@ -201,9 +223,11 @@ export default function CreateTest() {
     if (catalogTests.length === 0) return
 
     const exportData = catalogTests.map((t) => ({
-      'Test Code': t.testCode,
-      'Test Name': t.testName,
+      'Type': t.type === 'profile' ? 'Profile' : 'Test',
+      'Code': t.testCode,
+      'Name': t.testName,
       'Category': t.category,
+      'Gender': t.gender === 'male' ? 'Male' : t.gender === 'female' ? 'Female' : 'Both',
       'Parameters': t.parameters,
       'MRP (₹)': t.mrp,
       'Partner Price (₹)': t.price,
@@ -211,15 +235,18 @@ export default function CreateTest() {
       'Sample Type': t.sampleType,
       'Home Collection': t.homeCollection ? 'Yes' : 'No',
       'Form Type': t.formType || '—',
+      'Composition': t.type === 'profile' && t.composition?.length > 0 ? t.composition.join(', ') : '—',
       'Partner': getPartnerName(t.partnerId),
       'Status': t.status,
     }))
 
     const ws = XLSX.utils.json_to_sheet(exportData)
     ws['!cols'] = [
-      { wch: 25 }, // Test Code
-      { wch: 35 }, // Test Name
+      { wch: 12 }, // Type
+      { wch: 25 }, // Code
+      { wch: 35 }, // Name
       { wch: 18 }, // Category
+      { wch: 12 }, // Gender
       { wch: 40 }, // Parameters
       { wch: 12 }, // MRP
       { wch: 15 }, // Partner Price
@@ -227,23 +254,24 @@ export default function CreateTest() {
       { wch: 15 }, // Sample Type
       { wch: 18 }, // Home Collection
       { wch: 18 }, // Form Type
+      { wch: 30 }, // Composition
       { wch: 25 }, // Partner
       { wch: 12 }, // Status
     ]
 
     const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Test Catalog')
+    XLSX.utils.book_append_sheet(wb, ws, 'Test & Profile Catalog')
 
-    const fileName = `test_catalog_${new Date().toISOString().split('T')[0]}.xlsx`
+    const fileName = `test_profile_catalog_${new Date().toISOString().split('T')[0]}.xlsx`
     XLSX.writeFile(wb, fileName)
   }
 
   return (
     <>
       <header className="main-header">
-        <h2 className="page-title">Test Creation</h2>
+        <h2 className="page-title">Test & Profile Creation</h2>
         <p className="page-desc">
-          Upload and manage diagnostic tests for partners. Eligible partner types: Diagnostic, Collection Center, and Processing Center.
+          Upload and manage diagnostic tests and profiles for partners. Tests are individual diagnostic procedures, while Profiles are packages containing multiple tests or other profiles. Supports gender-specific targeting (Male/Female/Both). Eligible partner types: Diagnostic, Collection Center, and Processing Center.
         </p>
       </header>
       <div className="content">
@@ -254,14 +282,14 @@ export default function CreateTest() {
               className={`panel-tab ${activeTab === 'upload' ? 'active' : ''}`}
               onClick={() => { setActiveTab('upload'); setUploadSuccess(false) }}
             >
-              Upload Tests
+              Upload Tests & Profiles
             </button>
             <button
               type="button"
               className={`panel-tab ${activeTab === 'catalog' ? 'active' : ''}`}
               onClick={() => setActiveTab('catalog')}
             >
-              Test Catalog {tests.length > 0 && `(${tests.length})`}
+              Catalog {tests.length > 0 && `(${tests.filter(t => t.type !== 'profile').length} Tests, ${tests.filter(t => t.type === 'profile').length} Profiles)`}
             </button>
           </div>
 
@@ -344,7 +372,7 @@ export default function CreateTest() {
               {previewData && (
                 <div className="form-section">
                   <h3 className="form-section-title">
-                    Preview {previewData.length > 0 ? `| ${previewData.length} tests found` : '| No valid rows found'}
+                    Preview {previewData.length > 0 ? `| ${previewData.filter(r => r.type === 'test').length} test(s), ${previewData.filter(r => r.type === 'profile').length} profile(s)` : '| No valid rows found'}
                   </h3>
                   {previewData.length === 0 ? (
                     <div style={{ padding: '1.5rem', background: '#fef9c3', border: '1px solid #fde68a', borderRadius: '8px', color: '#92400e', fontSize: '0.875rem' }}>
@@ -365,16 +393,16 @@ export default function CreateTest() {
                           <thead>
                             <tr>
                               <th>#</th>
-                              <th>Test Code (Auto-generated)</th>
-                              <th>Test Name</th>
+                              <th>Type</th>
+                              <th>Code (Auto-gen)</th>
+                              <th>Name</th>
                               <th>Category</th>
-                              <th>Parameters</th>
+                              <th>Gender</th>
                               <th>MRP (₹)</th>
-                              <th>Partner Price (₹)</th>
+                              <th>Price (₹)</th>
                               <th>TAT</th>
-                              <th>Sample Type</th>
-                              <th>Home Collection</th>
                               <th>Form Type</th>
+                              <th>Composition</th>
                               <th>Status</th>
                             </tr>
                           </thead>
@@ -382,18 +410,30 @@ export default function CreateTest() {
                             {previewData.slice(0, 10).map((row, i) => (
                               <tr key={i} style={row.hasInvalidFormType ? { background: '#fef2f2' } : {}}>
                                 <td style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>{i + 1}</td>
-                                <td><code className="test-code-badge" style={{ fontSize: '0.75rem', opacity: 0.7 }}>Will be auto-generated</code></td>
+                                <td>
+                                  <span className={`status-badge ${row.type === 'profile' ? 'status-pending' : 'status-active'}`} style={{ fontSize: '0.7rem' }}>
+                                    {row.type === 'profile' ? '📦 PROFILE' : '🧪 TEST'}
+                                  </span>
+                                </td>
+                                <td><code className="test-code-badge" style={{ fontSize: '0.7rem', opacity: 0.7 }}>Auto-gen</code></td>
                                 <td style={{ fontWeight: 500 }}>{row.testName}</td>
                                 <td>{row.category}</td>
-                                <td className="test-params-cell">{row.parameters}</td>
+                                <td>
+                                  <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '4px', background: row.gender === 'male' ? '#dbeafe' : row.gender === 'female' ? '#fce7f3' : '#f3f4f6', color: row.gender === 'male' ? '#1e40af' : row.gender === 'female' ? '#9f1239' : '#374151' }}>
+                                    {row.gender === 'male' ? '♂ Male' : row.gender === 'female' ? '♀ Female' : '⚥ Both'}
+                                  </span>
+                                </td>
                                 <td style={{ color: 'var(--muted)', textDecoration: 'line-through' }}>₹{row.mrp}</td>
                                 <td style={{ fontWeight: 600, color: 'var(--success)' }}>₹{row.price}</td>
                                 <td>{row.tat}</td>
-                                <td>{row.sampleType}</td>
-                                <td style={{ textAlign: 'center' }}>{row.homeCollection ? '✓' : '✗'}</td>
                                 <td style={row.hasInvalidFormType ? { background: '#fee2e2', color: '#991b1b', fontWeight: 600 } : {}}>
                                   {row.formType || '—'}
                                   {row.hasInvalidFormType && ' ⚠'}
+                                </td>
+                                <td style={{ fontSize: '0.75rem', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {row.type === 'profile' && row.composition?.length > 0 ? (
+                                    <span title={row.composition.join(', ')}>{row.composition.length} item(s)</span>
+                                  ) : '—'}
                                 </td>
                                 <td>
                                   <span className={`status-badge ${row.status === 'active' ? 'status-active' : 'status-inactive'}`}>
@@ -406,7 +446,7 @@ export default function CreateTest() {
                         </table>
                         {previewData.length > 10 && (
                           <div className="test-preview-more">
-                            +{previewData.length - 10} more tests will be uploaded
+                            +{previewData.length - 10} more items will be uploaded
                           </div>
                         )}
                       </div>
@@ -417,7 +457,7 @@ export default function CreateTest() {
                           onClick={handleUpload}
                           disabled={previewData.filter(row => !row.hasInvalidFormType).length === 0}
                         >
-                          Upload {previewData.filter(row => !row.hasInvalidFormType).length} Test{previewData.filter(row => !row.hasInvalidFormType).length !== 1 ? 's' : ''}
+                          Upload {previewData.filter(row => !row.hasInvalidFormType).length} Item{previewData.filter(row => !row.hasInvalidFormType).length !== 1 ? 's' : ''}
                         </button>
                         <button type="button" className="btn-secondary" onClick={handleClear}>Clear</button>
                       </div>
@@ -464,8 +504,12 @@ export default function CreateTest() {
               {/* Stats bar */}
               <div className="test-catalog-stats">
                 <div className="test-stat-item">
-                  <span className="test-stat-label">Total Tests</span>
-                  <span className="test-stat-value">{catalogTests.length}</span>
+                  <span className="test-stat-label">🧪 Tests</span>
+                  <span className="test-stat-value">{catalogTests.filter(t => t.type !== 'profile').length}</span>
+                </div>
+                <div className="test-stat-item">
+                  <span className="test-stat-label">📦 Profiles</span>
+                  <span className="test-stat-value">{catalogTests.filter(t => t.type === 'profile').length}</span>
                 </div>
                 <div className="test-stat-item">
                   <span className="test-stat-label">Avg Price</span>
@@ -492,16 +536,16 @@ export default function CreateTest() {
                   <table>
                     <thead>
                       <tr>
-                        <th>Test Code</th>
-                        <th>Test Name</th>
+                        <th>Type</th>
+                        <th>Code</th>
+                        <th>Name</th>
                         <th>Category</th>
-                        <th>Parameters</th>
+                        <th>Gender</th>
                         <th>MRP</th>
-                        <th>Partner Price</th>
+                        <th>Price</th>
                         <th>TAT</th>
-                        <th>Sample Type</th>
-                        <th>Home Collection</th>
                         <th>Form Type</th>
+                        <th>Composition</th>
                         <th>Partner</th>
                         <th>Status</th>
                         <th>Actions</th>
@@ -510,18 +554,28 @@ export default function CreateTest() {
                     <tbody>
                       {paginatedTests.map((test) => (
                         <tr key={test.id}>
+                          <td>
+                            <span className={`status-badge ${test.type === 'profile' ? 'status-pending' : 'status-active'}`} style={{ fontSize: '0.7rem' }}>
+                              {test.type === 'profile' ? '📦' : '🧪'}
+                            </span>
+                          </td>
                           <td><code className="test-code-badge">{test.testCode}</code></td>
                           <td style={{ fontWeight: 500 }}>{test.testName}</td>
                           <td>{test.category}</td>
-                          <td className="test-params-cell">
-                            {Array.isArray(test.parameters) ? test.parameters.join(', ') : test.parameters}
+                          <td>
+                            <span style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', borderRadius: '4px', background: (test.gender === 'male') ? '#dbeafe' : (test.gender === 'female') ? '#fce7f3' : '#f3f4f6', color: (test.gender === 'male') ? '#1e40af' : (test.gender === 'female') ? '#9f1239' : '#374151' }}>
+                              {test.gender === 'male' ? '♂' : test.gender === 'female' ? '♀' : '⚥'}
+                            </span>
                           </td>
                           <td style={{ color: 'var(--muted)', textDecoration: 'line-through' }}>₹{test.mrp}</td>
                           <td style={{ fontWeight: 600, color: 'var(--success)' }}>₹{test.price}</td>
                           <td>{test.tat}</td>
-                          <td>{test.sampleType}</td>
-                          <td style={{ textAlign: 'center' }}>{test.homeCollection ? '✓' : '✗'}</td>
                           <td>{test.formType || '—'}</td>
+                          <td style={{ fontSize: '0.75rem' }}>
+                            {test.type === 'profile' && test.composition?.length > 0 ? (
+                              <span title={test.composition.join(', ')}>{test.composition.length} item(s)</span>
+                            ) : '—'}
+                          </td>
                           <td>{getPartnerName(test.partnerId)}</td>
                           <td>
                             <span className={`badge ${test.status === 'active' ? 'badge-active' : 'badge-inactive'}`}>
@@ -532,7 +586,7 @@ export default function CreateTest() {
                             <button
                               onClick={() => handleEditTest(test)}
                               className="action-icon"
-                              title="Edit test"
+                              title={`Edit ${test.type === 'profile' ? 'profile' : 'test'}`}
                             >
                               <FaEdit />
                             </button>

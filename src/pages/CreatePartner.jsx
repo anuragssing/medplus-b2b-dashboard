@@ -5,9 +5,7 @@ import { INDIAN_STATES, CITIES_BY_STATE } from '../data/indiaLocations.js'
 
 const PARTNER_TYPES = [
   { value: 'organization', label: 'Organization Partner' },
-  { value: 'collection_center', label: 'Collection Partner' },
-  { value: 'processing_center', label: 'Processing Partner' },
-  { value: 'diagnostic', label: 'Diagnostic Partner' },
+  { value: 'third_party_partner', label: 'Third Party Partner' },
 ]
 const MAX_HR_EMAILS = 20
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/

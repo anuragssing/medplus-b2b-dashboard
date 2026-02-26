@@ -17,24 +17,37 @@ const defaultAddress = (id, label, address, city, state, pincode) => ({
   isPrimary: true,
 })
 
+/* Partner types: Organization and Third Party Partner. Multiple third party partners; each can have up to 3 vendor types (diagnostic, collection, processing). */
 const initialPartners = [
   { id: 'p1', name: 'Infosys', partnerType: 'organization', contact: 'partners@infosys.com', phone: '9876543210', status: 'active', hrEmails: ['hr@infosys.com', 'admin@infosys.com'], addresses: [defaultAddress('addr-p1', 'Head Office', 'Electronics City, Phase 1', 'Bangalore', 'Karnataka', '560100')] },
-  { id: 'p2', name: 'Vijaya Diagnostic', partnerType: 'diagnostic', contact: 'ops@vijayadiagnostic.com', phone: '9876543211', status: 'active', addresses: [defaultAddress('addr-p2', 'Main Lab', 'MG Road', 'Bangalore', 'Karnataka', '560001')] },
   { id: 'p3', name: 'TCS', partnerType: 'organization', contact: 'bd@tcs.com', phone: '9876543212', status: 'active', hrEmails: ['hr@tcs.com'], addresses: [defaultAddress('addr-p3', 'Corporate Office', 'TCS Campus, Madhapur', 'Hyderabad', 'Telangana', '500081')] },
-  { id: 'p4', name: 'Medquest Center', partnerType: 'processing_center', contact: 'info@medquest.com', phone: '9876543213', status: 'active', addresses: [defaultAddress('addr-p4', 'Center', 'Block A, Tech Park', 'Mumbai', 'Maharashtra', '400001')] },
   { id: 'p5', name: 'Wipro', partnerType: 'organization', contact: 'bd@wipro.com', phone: '9876543214', status: 'active', hrEmails: ['hr@wipro.com'], addresses: [defaultAddress('addr-p5', 'HQ', 'Doddakannelli, Sarjapur Road', 'Bangalore', 'Karnataka', '560035')] },
+  { id: 'p6', name: 'HCL Technologies', partnerType: 'organization', contact: 'bd@hcl.com', phone: '9876543215', status: 'active', hrEmails: ['hr@hcl.com'], addresses: [defaultAddress('addr-p6', 'Corporate Office', 'Elite Building, Sector 18', 'Noida', 'Uttar Pradesh', '201301')] },
+  { id: 'p7', name: 'Tech Mahindra', partnerType: 'organization', contact: 'partners@techmahindra.com', phone: '9876543216', status: 'active', hrEmails: ['hr@techmahindra.com'], addresses: [defaultAddress('addr-p7', 'HQ', 'Plot 1-6, Raheja IT Park', 'Hyderabad', 'Telangana', '500081')] },
+  { id: 'p2', name: 'Vijaya & Medquest Partner', partnerType: 'third_party_partner', contact: 'partners@vijayamedquest.com', phone: '9876543200', status: 'active', addresses: [defaultAddress('addr-p2', 'Head Office', 'Central Hub', 'Bangalore', 'Karnataka', '560001')] },
+  { id: 'p4', name: 'HealthLabs Partner', partnerType: 'third_party_partner', contact: 'contact@healthlabs.com', phone: '9876543201', status: 'active', addresses: [defaultAddress('addr-p4', 'Main Lab', 'Sector 62', 'Noida', 'Uttar Pradesh', '201309')] },
+  { id: 'p8', name: 'QuickCollect Partner', partnerType: 'third_party_partner', contact: 'info@quickcollect.com', phone: '9876543202', status: 'active', addresses: [defaultAddress('addr-p8', 'Collection Hub', 'Bandra East', 'Mumbai', 'Maharashtra', '400051')] },
+]
+
+const initialVendors = [
+  { id: 'v1', partnerId: 'p2', name: 'Vijaya Diagnostic', type: 'diagnostic_vendor', status: 'active', contactName: 'Ops Team', email: 'ops@vijayadiagnostic.com', phone: '9876543211', loginEmails: ['ops@vijayadiagnostic.com', 'admin@vijayadiagnostic.com'] },
+  { id: 'v2', partnerId: 'p2', name: 'Medquest Center', type: 'collection_vendor', status: 'active', contactName: 'Info', email: 'info@medquest.com', phone: '9876543213', loginEmails: ['info@medquest.com', 'admin@medquest.com'] },
+  { id: 'v3', partnerId: 'p2', name: 'Vijaya & Medquest Partner', type: 'processing_vendor', status: 'active', contactName: 'Partners', email: 'partners@vijayamedquest.com', phone: '9876543200', loginEmails: ['partners@vijayamedquest.com'] },
+  { id: 'v4', partnerId: 'p4', name: 'HealthLabs Partner', type: 'diagnostic_vendor', status: 'active', contactName: 'Contact', email: 'contact@healthlabs.com', phone: '9876543201', loginEmails: ['contact@healthlabs.com'] },
+  { id: 'v5', partnerId: 'p4', name: 'HealthLabs Partner', type: 'collection_vendor', status: 'active', contactName: 'Contact', email: 'contact@healthlabs.com', phone: '9876543201', loginEmails: ['contact@healthlabs.com'] },
+  { id: 'v6', partnerId: 'p8', name: 'QuickCollect Partner', type: 'diagnostic_vendor', status: 'active', contactName: 'Info', email: 'info@quickcollect.com', phone: '9876543202', loginEmails: ['info@quickcollect.com'] },
 ]
 
 const initialClients = [
-  { id: 'c1', partnerId: 'p1', companyName: 'Infosys', industry: 'Healthcare', gstNo: '29AABCM1234F1Z5', status: 'Client Onboarded' },
-  { id: 'c2', partnerId: 'p3', companyName: 'TCS', industry: 'Technology', gstNo: '36AACCW5678G2Z9', status: 'Client Onboarded' },
-  { id: 'c3', partnerId: 'p5', companyName: 'Wipro', industry: 'Technology', gstNo: '27AAWPL9876K1Z3', status: 'Client Onboarded' },
+  { id: 'c1', partnerId: 'p1', companyName: 'Infosys', industry: 'Healthcare', gstNo: '29AABCM1234F1Z5', status: 'active', contactName: 'Partners', email: 'partners@infosys.com', phone: '9876543210', loginEmails: ['partners@infosys.com', 'hr@infosys.com'] },
+  { id: 'c2', partnerId: 'p3', companyName: 'TCS', industry: 'Technology', gstNo: '36AACCW5678G2Z9', status: 'active', contactName: 'BD Team', email: 'bd@tcs.com', phone: '9876543212', loginEmails: ['bd@tcs.com', 'hr@tcs.com'] },
+  { id: 'c3', partnerId: 'p5', companyName: 'Wipro', industry: 'Technology', gstNo: '27AAWPL9876K1Z3', status: 'active', contactName: 'BD Team', email: 'bd@wipro.com', phone: '9876543214', loginEmails: ['bd@wipro.com', 'hr@wipro.com'] },
 ]
 
 const initialCenters = [
   {
     id: 'cc1',
-    partnerId: 'p2',
+    vendorId: 'v1',
     name: 'Vijaya Diagnostic Main Lab',
     state: 'Karnataka',
     city: 'Bangalore',
@@ -52,7 +65,7 @@ const initialCenters = [
   },
   {
     id: 'cc2',
-    partnerId: 'p2',
+    vendorId: 'v1',
     name: 'Vijaya Diagnostic North Branch',
     state: 'Delhi',
     city: 'New Delhi',
@@ -70,7 +83,7 @@ const initialCenters = [
   },
   {
     id: 'cc3',
-    partnerId: 'p4',
+    vendorId: 'v2',
     name: 'Medquest Collection Center',
     state: 'Maharashtra',
     city: 'Mumbai',
@@ -84,6 +97,24 @@ const initialCenters = [
       Friday: { isOpen: true, openTime: '07:00', closeTime: '19:00' },
       Saturday: { isOpen: true, openTime: '08:00', closeTime: '16:00' },
       Sunday: { isOpen: true, openTime: '08:00', closeTime: '12:00' }
+    }
+  },
+  {
+    id: 'cc4',
+    vendorId: 'v3',
+    name: 'Vijaya Processing Hub',
+    state: 'Karnataka',
+    city: 'Bangalore',
+    address: '45, Industrial Area, Whitefield',
+    slots: 100,
+    workingHours: {
+      Monday: { isOpen: true, openTime: '08:00', closeTime: '18:00' },
+      Tuesday: { isOpen: true, openTime: '08:00', closeTime: '18:00' },
+      Wednesday: { isOpen: true, openTime: '08:00', closeTime: '18:00' },
+      Thursday: { isOpen: true, openTime: '08:00', closeTime: '18:00' },
+      Friday: { isOpen: true, openTime: '08:00', closeTime: '18:00' },
+      Saturday: { isOpen: true, openTime: '09:00', closeTime: '14:00' },
+      Sunday: { isOpen: false, openTime: '09:00', closeTime: '18:00' }
     }
   }
 ]
@@ -117,26 +148,26 @@ const initialPackages = [
 ]
 
 const initialTopUpRequests = [
-  { id: '1', totalMembers: 50, estimatedPrice: 67500, status: 'initiated', organizationId: 'p1', memberDetails: [{ planName: 'Corporate Gold', primaryCount: 30, addonCount: 20 }], paymentTransactionId: '', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: '', createdAt: '2025-02-01T10:00:00.000Z' },
-  { id: '2', totalMembers: 80, estimatedPrice: 108000, status: 'payment_done', organizationId: 'p1', memberDetails: [{ planName: 'Corporate Gold', primaryCount: 50, addonCount: 30 }], paymentTransactionId: 'TXN001', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: '', createdAt: '2025-02-02T11:00:00.000Z' },
-  { id: '3', totalMembers: 100, estimatedPrice: 135000, status: 'payment_verified', organizationId: 'p3', memberDetails: [{ planName: 'Employee Wallet Basic', primaryCount: 100, addonCount: 0 }], paymentTransactionId: 'TXN002', paymentReceipt: '', verifiedBy: 'Admin', verifiedDate: '2025-02-03T10:00:00.000Z', remarks: '', createdAt: '2025-02-03T09:00:00.000Z' },
-  { id: '4', totalMembers: 30, estimatedPrice: 40500, status: 'payment_rejected', organizationId: 'p1', memberDetails: [{ planName: 'Corporate Gold', primaryCount: 30, addonCount: 0 }], paymentTransactionId: 'TXN003', paymentReceipt: '', verifiedBy: 'Admin', verifiedDate: '2025-02-04T10:00:00.000Z', remarks: 'Invalid payment details', createdAt: '2025-02-04T08:00:00.000Z' },
-  { id: '5', totalMembers: 20, estimatedPrice: 27000, status: 'cancelled', organizationId: 'p3', memberDetails: [{ planName: 'Employee Wallet Basic', primaryCount: 20, addonCount: 0 }], paymentTransactionId: '', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: 'Cancelled by HR', createdAt: '2025-02-05T10:00:00.000Z' },
-  { id: '6', totalMembers: 60, estimatedPrice: 86400, status: 'initiated', organizationId: 'p3', memberDetails: [{ planName: 'TCS Health Plus', primaryCount: 40, addonCount: 20 }], paymentTransactionId: '', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: '', createdAt: '2025-02-06T10:00:00.000Z' },
-  { id: '7', totalMembers: 45, estimatedPrice: 92700, status: 'payment_verified', organizationId: 'p3', memberDetails: [{ planName: 'TCS Combo Plan', primaryCount: 45, addonCount: 0 }], paymentTransactionId: 'TXN004', paymentReceipt: '', verifiedBy: 'Admin', verifiedDate: '2025-02-07T10:00:00.000Z', remarks: '', createdAt: '2025-02-07T09:00:00.000Z' },
-  { id: '8', totalMembers: 70, estimatedPrice: 144200, status: 'payment_done', organizationId: 'p5', memberDetails: [{ planName: 'Wipro Combo', primaryCount: 50, addonCount: 20 }], paymentTransactionId: 'TXN005', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: '', createdAt: '2025-02-08T10:00:00.000Z' },
-  { id: '9', totalMembers: 25, estimatedPrice: 31500, status: 'initiated', organizationId: 'p5', memberDetails: [{ planName: 'Wipro Wellness', primaryCount: 25, addonCount: 0 }], paymentTransactionId: '', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: '', createdAt: '2025-02-09T10:00:00.000Z' },
+  { id: '1', totalMembers: 50, estimatedPrice: 67500, status: 'initiated', clientId: 'c1', memberDetails: [{ planName: 'Corporate Gold', primaryCount: 30, addonCount: 20 }], paymentTransactionId: '', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: '', createdAt: '2025-02-01T10:00:00.000Z' },
+  { id: '2', totalMembers: 80, estimatedPrice: 108000, status: 'payment_done', clientId: 'c1', memberDetails: [{ planName: 'Corporate Gold', primaryCount: 50, addonCount: 30 }], paymentTransactionId: 'TXN001', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: '', createdAt: '2025-02-02T11:00:00.000Z' },
+  { id: '3', totalMembers: 100, estimatedPrice: 135000, status: 'payment_verified', clientId: 'c2', memberDetails: [{ planName: 'Employee Wallet Basic', primaryCount: 100, addonCount: 0 }], paymentTransactionId: 'TXN002', paymentReceipt: '', verifiedBy: 'Admin', verifiedDate: '2025-02-03T10:00:00.000Z', remarks: '', createdAt: '2025-02-03T09:00:00.000Z' },
+  { id: '4', totalMembers: 30, estimatedPrice: 40500, status: 'payment_rejected', clientId: 'c1', memberDetails: [{ planName: 'Corporate Gold', primaryCount: 30, addonCount: 0 }], paymentTransactionId: 'TXN003', paymentReceipt: '', verifiedBy: 'Admin', verifiedDate: '2025-02-04T10:00:00.000Z', remarks: 'Invalid payment details', createdAt: '2025-02-04T08:00:00.000Z' },
+  { id: '5', totalMembers: 20, estimatedPrice: 27000, status: 'cancelled', clientId: 'c2', memberDetails: [{ planName: 'Employee Wallet Basic', primaryCount: 20, addonCount: 0 }], paymentTransactionId: '', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: 'Cancelled by HR', createdAt: '2025-02-05T10:00:00.000Z' },
+  { id: '6', totalMembers: 60, estimatedPrice: 86400, status: 'initiated', clientId: 'c2', memberDetails: [{ planName: 'TCS Health Plus', primaryCount: 40, addonCount: 20 }], paymentTransactionId: '', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: '', createdAt: '2025-02-06T10:00:00.000Z' },
+  { id: '7', totalMembers: 45, estimatedPrice: 92700, status: 'payment_verified', clientId: 'c2', memberDetails: [{ planName: 'TCS Combo Plan', primaryCount: 45, addonCount: 0 }], paymentTransactionId: 'TXN004', paymentReceipt: '', verifiedBy: 'Admin', verifiedDate: '2025-02-07T10:00:00.000Z', remarks: '', createdAt: '2025-02-07T09:00:00.000Z' },
+  { id: '8', totalMembers: 70, estimatedPrice: 144200, status: 'payment_done', clientId: 'c3', memberDetails: [{ planName: 'Wipro Combo', primaryCount: 50, addonCount: 20 }], paymentTransactionId: 'TXN005', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: '', createdAt: '2025-02-08T10:00:00.000Z' },
+  { id: '9', totalMembers: 25, estimatedPrice: 31500, status: 'initiated', clientId: 'c3', memberDetails: [{ planName: 'Wipro Wellness', primaryCount: 25, addonCount: 0 }], paymentTransactionId: '', paymentReceipt: '', verifiedBy: '', verifiedDate: '', remarks: '', createdAt: '2025-02-09T10:00:00.000Z' },
 ]
 
 const initialBenefitRequests = [
-  { id: '1', planId: 'b1', planName: 'Corporate Gold', totalPrice: 135000, uploadedDocumentName: 'employees.xlsx', organizationId: 'p1', status: 'initiated', responseDocument: '', modifiedBy: '', modifiedDate: '', remarks: '', createdAt: '2025-02-01T10:00:00.000Z' },
-  { id: '2', planId: 'b1', planName: 'Corporate Gold', totalPrice: 67500, uploadedDocumentName: 'addon_members.xlsx', organizationId: 'p1', status: 'approved', responseDocument: 'certificate.pdf', modifiedBy: 'Admin', modifiedDate: '2025-02-05T10:00:00.000Z', remarks: '', createdAt: '2025-02-03T09:00:00.000Z' },
-  { id: '3', planId: 'b2', planName: 'Employee Wallet Basic', totalPrice: 24000, uploadedDocumentName: 'invalid.xlsx', organizationId: 'p3', status: 'rejected', responseDocument: '', modifiedBy: 'Admin', modifiedDate: '2025-02-06T09:00:00.000Z', remarks: 'Rejected by admin', createdAt: '2025-02-04T14:00:00.000Z' },
-  { id: '4', planId: 'b2', planName: 'Employee Wallet Basic', totalPrice: 36000, uploadedDocumentName: 'cancelled_enroll.xlsx', organizationId: 'p3', status: 'cancelled', responseDocument: '', modifiedBy: '', modifiedDate: '', remarks: 'Cancelled by HR', createdAt: '2025-02-07T10:00:00.000Z' },
-  { id: '5', planId: 'b5', planName: 'TCS Health Plus', totalPrice: 86400, uploadedDocumentName: 'tcs_employees.xlsx', organizationId: 'p3', status: 'approved', responseDocument: 'tcs_cert.pdf', modifiedBy: 'Admin', modifiedDate: '2025-02-08T10:00:00.000Z', remarks: '', createdAt: '2025-02-07T11:00:00.000Z' },
-  { id: '6', planId: 'b6', planName: 'TCS Combo Plan', totalPrice: 132000, uploadedDocumentName: 'tcs_combo_enroll.xlsx', organizationId: 'p3', status: 'initiated', responseDocument: '', modifiedBy: '', modifiedDate: '', remarks: '', createdAt: '2025-02-09T10:00:00.000Z' },
-  { id: '7', planId: 'b7', planName: 'Wipro Wellness', totalPrice: 63000, uploadedDocumentName: 'wipro_wellness.xlsx', organizationId: 'p5', status: 'approved', responseDocument: 'wipro_cert.pdf', modifiedBy: 'Admin', modifiedDate: '2025-02-10T10:00:00.000Z', remarks: '', createdAt: '2025-02-09T14:00:00.000Z' },
-  { id: '8', planId: 'b9', planName: 'Wipro Combo', totalPrice: 103000, uploadedDocumentName: 'wipro_combo.xlsx', organizationId: 'p5', status: 'payment_done', responseDocument: '', modifiedBy: '', modifiedDate: '', remarks: '', createdAt: '2025-02-10T09:00:00.000Z' },
+  { id: '1', planId: 'b1', planName: 'Corporate Gold', totalPrice: 135000, uploadedDocumentName: 'employees.xlsx', clientId: 'c1', status: 'initiated', responseDocument: '', modifiedBy: '', modifiedDate: '', remarks: '', createdAt: '2025-02-01T10:00:00.000Z' },
+  { id: '2', planId: 'b1', planName: 'Corporate Gold', totalPrice: 67500, uploadedDocumentName: 'addon_members.xlsx', clientId: 'c1', status: 'approved', responseDocument: 'certificate.pdf', modifiedBy: 'Admin', modifiedDate: '2025-02-05T10:00:00.000Z', remarks: '', createdAt: '2025-02-03T09:00:00.000Z' },
+  { id: '3', planId: 'b2', planName: 'Employee Wallet Basic', totalPrice: 24000, uploadedDocumentName: 'invalid.xlsx', clientId: 'c2', status: 'rejected', responseDocument: '', modifiedBy: 'Admin', modifiedDate: '2025-02-06T09:00:00.000Z', remarks: 'Rejected by admin', createdAt: '2025-02-04T14:00:00.000Z' },
+  { id: '4', planId: 'b2', planName: 'Employee Wallet Basic', totalPrice: 36000, uploadedDocumentName: 'cancelled_enroll.xlsx', clientId: 'c2', status: 'cancelled', responseDocument: '', modifiedBy: '', modifiedDate: '', remarks: 'Cancelled by HR', createdAt: '2025-02-07T10:00:00.000Z' },
+  { id: '5', planId: 'b5', planName: 'TCS Health Plus', totalPrice: 86400, uploadedDocumentName: 'tcs_employees.xlsx', clientId: 'c2', status: 'approved', responseDocument: 'tcs_cert.pdf', modifiedBy: 'Admin', modifiedDate: '2025-02-08T10:00:00.000Z', remarks: '', createdAt: '2025-02-07T11:00:00.000Z' },
+  { id: '6', planId: 'b6', planName: 'TCS Combo Plan', totalPrice: 132000, uploadedDocumentName: 'tcs_combo_enroll.xlsx', clientId: 'c2', status: 'initiated', responseDocument: '', modifiedBy: '', modifiedDate: '', remarks: '', createdAt: '2025-02-09T10:00:00.000Z' },
+  { id: '7', planId: 'b7', planName: 'Wipro Wellness', totalPrice: 63000, uploadedDocumentName: 'wipro_wellness.xlsx', clientId: 'c3', status: 'approved', responseDocument: 'wipro_cert.pdf', modifiedBy: 'Admin', modifiedDate: '2025-02-10T10:00:00.000Z', remarks: '', createdAt: '2025-02-09T14:00:00.000Z' },
+  { id: '8', planId: 'b9', planName: 'Wipro Combo', totalPrice: 103000, uploadedDocumentName: 'wipro_combo.xlsx', clientId: 'c3', status: 'payment_done', responseDocument: '', modifiedBy: '', modifiedDate: '', remarks: '', createdAt: '2025-02-10T09:00:00.000Z' },
 ]
 
 const formTypes = [
@@ -168,32 +199,29 @@ const initialTests = [
   { id: 't2', partnerId: 'p2', testCode: 'VD-002', testName: 'Lipid Profile', category: 'Biochemistry', parameters: 'Total Cholesterol, HDL, LDL, Triglycerides, VLDL', mrp: 900, price: 700, tat: '12 hours', sampleType: 'Blood', homeCollection: true, formType: 'PATHALOGY', status: 'active' },
   { id: 't3', partnerId: 'p2', testCode: 'VD-003', testName: 'Thyroid Profile (T3, T4, TSH)', category: 'Endocrinology', parameters: 'T3, T4, TSH', mrp: 1200, price: 950, tat: '24 hours', sampleType: 'Blood', homeCollection: true, formType: 'PATHALOGY', status: 'active' },
   { id: 't4', partnerId: 'p2', testCode: 'VD-004', testName: 'Blood Glucose Fasting', category: 'Biochemistry', parameters: 'Blood Glucose', mrp: 200, price: 150, tat: '4 hours', sampleType: 'Blood', homeCollection: true, formType: 'PATHALOGY', status: 'active' },
-  { id: 't5', partnerId: 'p4', testCode: 'MQ-001', testName: 'Urine Routine & Microscopy', category: 'Microbiology', parameters: 'Color, Transparency, pH, Protein, Glucose, WBCs, RBCs, Casts', mrp: 300, price: 220, tat: '6 hours', sampleType: 'Urine', homeCollection: false, formType: 'PATHALOGY', status: 'active' },
-  { id: 't6', partnerId: 'p4', testCode: 'MQ-002', testName: 'Liver Function Test (LFT)', category: 'Biochemistry', parameters: 'Bilirubin, ALT, AST, ALP, Albumin, Total Protein', mrp: 1100, price: 850, tat: '12 hours', sampleType: 'Blood', homeCollection: true, formType: 'PATHALOGY', status: 'active' },
-  { id: 't7', partnerId: 'p4', testCode: 'MQ-003', testName: 'Kidney Function Test (KFT)', category: 'Biochemistry', parameters: 'Creatinine, Urea, Uric Acid, Electrolytes', mrp: 850, price: 680, tat: '12 hours', sampleType: 'Blood', homeCollection: true, formType: 'PATHALOGY', status: 'active' },
+  { id: 't5', partnerId: 'p2', testCode: 'MQ-001', testName: 'Urine Routine & Microscopy', category: 'Microbiology', parameters: 'Color, Transparency, pH, Protein, Glucose, WBCs, RBCs, Casts', mrp: 300, price: 220, tat: '6 hours', sampleType: 'Urine', homeCollection: false, formType: 'PATHALOGY', status: 'active' },
+  { id: 't6', partnerId: 'p2', testCode: 'MQ-002', testName: 'Liver Function Test (LFT)', category: 'Biochemistry', parameters: 'Bilirubin, ALT, AST, ALP, Albumin, Total Protein', mrp: 1100, price: 850, tat: '12 hours', sampleType: 'Blood', homeCollection: true, formType: 'PATHALOGY', status: 'active' },
+  { id: 't7', partnerId: 'p2', testCode: 'MQ-003', testName: 'Kidney Function Test (KFT)', category: 'Biochemistry', parameters: 'Creatinine, Urea, Uric Acid, Electrolytes', mrp: 850, price: 680, tat: '12 hours', sampleType: 'Blood', homeCollection: true, formType: 'PATHALOGY', status: 'active' },
 ]
 
 const initialTestCenterMappings = [
-  // Vijaya Diagnostic — Main Lab (cc1) — tests t1–t4
   { id: 'tcm1', partnerId: 'p2', centerId: 'cc1', testId: 't1', testCode: 'VD-001', testName: 'Complete Blood Count (CBC)', category: 'Haematology', partnerPrice: 450, centerPrice: 420, status: 'active' },
   { id: 'tcm2', partnerId: 'p2', centerId: 'cc1', testId: 't2', testCode: 'VD-002', testName: 'Lipid Profile', category: 'Biochemistry', partnerPrice: 700, centerPrice: 670, status: 'active' },
   { id: 'tcm3', partnerId: 'p2', centerId: 'cc1', testId: 't3', testCode: 'VD-003', testName: 'Thyroid Profile (T3, T4, TSH)', category: 'Endocrinology', partnerPrice: 950, centerPrice: 900, status: 'active' },
   { id: 'tcm4', partnerId: 'p2', centerId: 'cc1', testId: 't4', testCode: 'VD-004', testName: 'Blood Glucose Fasting', category: 'Biochemistry', partnerPrice: 150, centerPrice: 140, status: 'active' },
-  // Vijaya Diagnostic — North (cc2) — selected tests with different pricing
   { id: 'tcm5', partnerId: 'p2', centerId: 'cc2', testId: 't1', testCode: 'VD-001', testName: 'Complete Blood Count (CBC)', category: 'Haematology', partnerPrice: 450, centerPrice: 440, status: 'active' },
   { id: 'tcm6', partnerId: 'p2', centerId: 'cc2', testId: 't2', testCode: 'VD-002', testName: 'Lipid Profile', category: 'Biochemistry', partnerPrice: 700, centerPrice: 690, status: 'active' },
-  // Medquest — Center (cc3) — tests t5–t7
-  { id: 'tcm7', partnerId: 'p4', centerId: 'cc3', testId: 't5', testCode: 'MQ-001', testName: 'Urine Routine & Microscopy', category: 'Microbiology', partnerPrice: 220, centerPrice: 200, status: 'active' },
-  { id: 'tcm8', partnerId: 'p4', centerId: 'cc3', testId: 't6', testCode: 'MQ-002', testName: 'Liver Function Test (LFT)', category: 'Biochemistry', partnerPrice: 850, centerPrice: 820, status: 'active' },
-  { id: 'tcm9', partnerId: 'p4', centerId: 'cc3', testId: 't7', testCode: 'MQ-003', testName: 'Kidney Function Test (KFT)', category: 'Biochemistry', partnerPrice: 680, centerPrice: 650, status: 'active' },
+  { id: 'tcm7', partnerId: 'p2', centerId: 'cc3', testId: 't5', testCode: 'MQ-001', testName: 'Urine Routine & Microscopy', category: 'Microbiology', partnerPrice: 220, centerPrice: 200, status: 'active' },
+  { id: 'tcm8', partnerId: 'p2', centerId: 'cc3', testId: 't6', testCode: 'MQ-002', testName: 'Liver Function Test (LFT)', category: 'Biochemistry', partnerPrice: 850, centerPrice: 820, status: 'active' },
+  { id: 'tcm9', partnerId: 'p2', centerId: 'cc3', testId: 't7', testCode: 'MQ-003', testName: 'Kidney Function Test (KFT)', category: 'Biochemistry', partnerPrice: 680, centerPrice: 650, status: 'active' },
 ]
 
-// Wallet balance per organization (credits when admin verifies top-up payment)
+// Wallet balance per client (credits when admin verifies top-up payment)
 function computeInitialOrganizationWallets(requests) {
   const wallets = {}
   ;(requests || []).filter((r) => r.status === 'payment_verified').forEach((r) => {
-    const orgId = r.organizationId || ''
-    if (orgId) wallets[orgId] = (wallets[orgId] || 0) + (Number(r.estimatedPrice) || 0)
+    const cid = r.clientId || r.organizationId || ''
+    if (cid) wallets[cid] = (wallets[cid] || 0) + (Number(r.estimatedPrice) || 0)
   })
   return wallets
 }
@@ -503,6 +531,7 @@ export const useDashboardStore = create(
   persist(
     (set) => ({
         partners: initialPartners,
+        vendors: initialVendors,
         clients: initialClients,
         centers: initialCenters,
         benefits: initialBenefits,
@@ -532,53 +561,7 @@ export const useDashboardStore = create(
               })) + 1
             : 1
           const id = partner.id || 'p' + nextNum
-
-          // If partner type is organization, also create a client entry
-          let updatedClients = s.clients || []
-          if (partner.partnerType === 'organization') {
-            const existingClients = s.clients || []
-            const clientNextNum = existingClients.length > 0
-              ? Math.max(0, ...existingClients.map((c) => {
-                  const m = (c.id || '').match(/^c(\d+)$/)
-                  return m ? parseInt(m[1], 10) : 0
-                })) + 1
-              : 1
-            const clientId = 'c' + clientNextNum
-
-            // Create client entry with partner details
-            const newClient = {
-              id: clientId,
-              companyName: partner.name,
-              partnerId: id,
-              status: 'Client Onboarded',
-              industry: '',
-              gstNo: '',
-            }
-
-            updatedClients = [...existingClients, newClient]
-
-            // Also add HR users mapping if hrEmails exist (keep hrUsers as array: { email, clientId, companyName })
-            if (partner.hrEmails && partner.hrEmails.length > 0) {
-              const existingHrArr = Array.isArray(s.hrUsers) ? s.hrUsers : []
-              const withoutThisClient = existingHrArr.filter((hr) => hr.clientId !== clientId)
-              const newEntries = partner.hrEmails.map((email) => ({
-                email: String(email || '').trim(),
-                clientId,
-                companyName: partner.name || '',
-              })).filter((e) => e.email)
-              const updatedHrUsers = [...withoutThisClient, ...newEntries]
-              return {
-                partners: [...existing, { ...partner, id }],
-                clients: updatedClients,
-                hrUsers: updatedHrUsers
-              }
-            }
-          }
-
-          return {
-            partners: [...existing, { ...partner, id }],
-            ...(partner.partnerType === 'organization' ? { clients: updatedClients } : {})
-          }
+          return { partners: [...existing, { ...partner, id }] }
         }),
 
       updatePartner: (id, updates) =>
@@ -626,8 +609,59 @@ export const useDashboardStore = create(
         }),
 
       addClient: (client) =>
+        set((s) => {
+          const list = s.clients || []
+          const nextNum = list.length ? Math.max(0, ...list.map((c) => {
+            const m = (c.id || '').match(/^c(\d+)$/)
+            return m ? parseInt(m[1], 10) : 0
+          })) + 1 : 1
+          const id = client.id || 'c' + nextNum
+          const newClient = { ...client, id }
+          let nextHrUsers = s.hrUsers || []
+          if (newClient.loginEmails && newClient.loginEmails.length > 0) {
+            const withoutThis = (s.hrUsers || []).filter((hr) => hr.clientId !== id)
+            nextHrUsers = [...withoutThis, ...newClient.loginEmails.map((email) => ({
+              email: String(email || '').trim(),
+              clientId: id,
+              companyName: newClient.companyName || newClient.clientName || '',
+            })).filter((e) => e.email)]
+          }
+          return {
+            clients: [...list, newClient],
+            ...(nextHrUsers !== (s.hrUsers || []) ? { hrUsers: nextHrUsers } : {}),
+          }
+        }),
+
+      updateClient: (id, updates) =>
+        set((s) => {
+          const updatedClients = (s.clients || []).map((c) => (c.id === id ? { ...c, ...updates } : c))
+          const client = updatedClients.find((c) => c.id === id)
+          if (client && updates.loginEmails) {
+            const withoutThis = (s.hrUsers || []).filter((hr) => hr.clientId !== id)
+            const newEntries = (updates.loginEmails || []).map((email) => ({
+              email: String(email || '').trim(),
+              clientId: id,
+              companyName: client.companyName || client.clientName || '',
+            })).filter((e) => e.email)
+            return { clients: updatedClients, hrUsers: [...withoutThis, ...newEntries] }
+          }
+          return { clients: updatedClients }
+        }),
+
+      addVendor: (vendor) =>
+        set((s) => {
+          const list = s.vendors || []
+          const nextNum = list.length ? Math.max(0, ...list.map((v) => {
+            const m = (v.id || '').match(/^v(\d+)$/)
+            return m ? parseInt(m[1], 10) : 0
+          })) + 1 : 1
+          const id = vendor.id || 'v' + nextNum
+          return { vendors: [...list, { ...vendor, id }] }
+        }),
+
+      updateVendor: (id, updates) =>
         set((s) => ({
-          clients: [...s.clients, { ...client, id: client.id || 'c' + Date.now() }],
+          vendors: (s.vendors || []).map((v) => (v.id === id ? { ...v, ...updates } : v)),
         })),
 
       addCenter: (center) =>
@@ -990,6 +1024,7 @@ export const useDashboardStore = create(
         set((s) => {
           const list = s.topUpRequests || []
           const id = String(list.length ? Math.max(...list.map((r) => Number(r.id) || 0)) + 1 : 1)
+          const clientId = payload.clientId ?? payload.organizationId ?? ''
           return {
             topUpRequests: [
               ...list,
@@ -998,7 +1033,7 @@ export const useDashboardStore = create(
                 totalMembers: payload.totalMembers ?? 0,
                 estimatedPrice: payload.estimatedPrice ?? 0,
                 status: 'initiated',
-                organizationId: payload.organizationId ?? '',
+                clientId,
                 memberDetails: payload.memberDetails ?? [],
                 paymentTransactionId: '',
                 paymentReceipt: '',
@@ -1015,13 +1050,14 @@ export const useDashboardStore = create(
         set((s) => {
           const list = s.topUpRequests || []
           const request = list.find((r) => r.id === id)
+          const clientId = request?.clientId ?? request?.organizationId
           const isNowVerified = updates.status === 'payment_verified'
           const wasNotVerified = request && request.status !== 'payment_verified'
-          const shouldCreditWallet = isNowVerified && wasNotVerified && request?.organizationId
+          const shouldCreditWallet = isNowVerified && wasNotVerified && clientId
           const creditAmount = shouldCreditWallet ? (Number(request.estimatedPrice) || 0) : 0
           const newWallets = { ...(s.organizationWallets || {}) }
-          if (creditAmount > 0 && request?.organizationId) {
-            newWallets[request.organizationId] = (newWallets[request.organizationId] || 0) + creditAmount
+          if (creditAmount > 0 && clientId) {
+            newWallets[clientId] = (newWallets[clientId] || 0) + creditAmount
           }
           return {
             ...s,
@@ -1041,6 +1077,7 @@ export const useDashboardStore = create(
         set((s) => {
           const list = s.benefitRequests || []
           const id = String(list.length ? Math.max(...list.map((r) => Number(r.id) || 0)) + 1 : 1)
+          const clientId = payload.clientId ?? payload.organizationId ?? ''
           return {
             benefitRequests: [
               ...list,
@@ -1051,7 +1088,7 @@ export const useDashboardStore = create(
                 totalPrice: payload.totalPrice ?? 0,
                 uploadedDocumentName: payload.uploadedDocumentName ?? '',
                 uploadedDocumentContent: payload.uploadedDocumentContent ?? '',
-                organizationId: payload.organizationId ?? '',
+                clientId,
                 status: 'initiated',
                 responseDocument: '',
                 responseDocumentContent: payload.responseDocumentContent ?? '',
@@ -1173,11 +1210,12 @@ export const useDashboardStore = create(
           ),
         })),
 
-      deductOrganizationWallet: (partnerId, amount) =>
+      deductOrganizationWallet: (clientIdOrPartnerId, amount) =>
         set((s) => {
-          const current = (s.organizationWallets || {})[partnerId] ?? 0
+          const key = clientIdOrPartnerId
+          const current = (s.organizationWallets || {})[key] ?? 0
           const next = Math.max(0, current - (Number(amount) || 0))
-          return { organizationWallets: { ...(s.organizationWallets || {}), [partnerId]: next } }
+          return { organizationWallets: { ...(s.organizationWallets || {}), [key]: next } }
         }),
 
       cancelSubscription: (subscriptionId) =>
@@ -1350,10 +1388,10 @@ export const useDashboardStore = create(
 
         // Build merged state - custom values MUST come after persistedState spread
         // to avoid being overwritten by undefined values
+        const vendors = Array.isArray(persistedState?.vendors) && persistedState.vendors.length > 0 ? persistedState.vendors : currentState.vendors
         return {
           ...currentState,
           ...persistedState,
-          // These override any persisted values with our computed safe values
           topUpRequests: topUp,
           benefitRequests: benefit,
           organizationWallets: wallets,
@@ -1364,6 +1402,7 @@ export const useDashboardStore = create(
           slots,
           hrUsers,
           partners,
+          vendors,
           benefits,
         }
       },

@@ -264,7 +264,7 @@ function CreateBenefit() {
         <h2 className="page-title">{title}</h2>
         {isAdmin && (
           <p className="page-desc" style={{ marginBottom: '0.25rem' }}>
-            Organization: {orgForBenefit ? `${orgForBenefit.name} (ID: ${orgForBenefit.id})` : 'Select organization from dropdown below.'}
+            Client: {selectedClient ? `${selectedClient.companyName || selectedClient.clientName} (ID: ${selectedClient.id})` : 'Select client from dropdown below.'}
           </p>
         )}
         <p className="page-desc">{desc}</p>
@@ -279,9 +279,9 @@ function CreateBenefit() {
               </div>
               <div className="form-row form-row-3">
                 <label>Status {isEdit ? <select name="benefit_status" disabled={readOnly} defaultValue={benefit?.status}><option value="Active">Active</option><option value="Inactive">Inactive</option></select> : <input type="text" value="Active" readOnly style={{ backgroundColor: '#f5f5f5' }} />}</label>
-                <label>Organization * <select name="benefit_organization" required disabled={readOnly || organizationLockedFromPartner} value={selectedOrgClientId} onChange={(e) => !readOnly && !organizationLockedFromPartner && setSelectedOrgClientId(e.target.value)}>
-                  <option value="">Select an Organization</option>
-                  {(clients || []).filter(c => c.companyName && c.companyName.trim()).map((c) => <option key={c.id} value={c.id}>{c.companyName}</option>)}
+                <label>Client * <select name="benefit_organization" required disabled={readOnly || organizationLockedFromPartner} value={selectedOrgClientId} onChange={(e) => !readOnly && !organizationLockedFromPartner && setSelectedOrgClientId(e.target.value)}>
+                  <option value="">Select client</option>
+                  {(clients || []).filter(c => (c.companyName || c.clientName) && (c.companyName || c.clientName).trim()).map((c) => <option key={c.id} value={c.id}>{c.companyName || c.clientName}</option>)}
                 </select></label>
                 <label>Payment Type <select name="benefit_paymentType" disabled={readOnly} value={paymentType} onChange={(e) => !readOnly && setPaymentType(e.target.value)}>{PAYMENT_TYPES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}</select></label>
               </div>

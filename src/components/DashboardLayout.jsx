@@ -5,16 +5,17 @@ import { LoadingOverlay } from './Spinner'
 import '../App.css'
 
 const NAV_ADMIN = [
-  { id: 'partners', label: 'Manage Partners', path: '/dashboard?tab=partners', children: [
-    { id: 'dashboard', label: 'Dashboard', path: '/dashboard?tab=partners' },
-    { id: 'create', label: 'Create', path: '/dashboard/partners/create' },
+  { id: 'clients-vendors', label: 'Manage Clients & Vendors', path: '/dashboard?tab=clients-vendors', children: [
+    { id: 'dashboard', label: 'Dashboard', path: '/dashboard?tab=clients-vendors' },
+    { id: 'create-client', label: 'Create Client', path: '/dashboard/clients/create' },
+    { id: 'create-vendor', label: 'Create Vendor', path: '/dashboard/vendors/create' },
     { id: 'center', label: 'Centers', path: '/dashboard/centers/create' },
     { id: 'test-creation', label: 'Test Creation', path: '/dashboard/tests/upload' },
     { id: 'test-mapping', label: 'Center Mapping', path: '/dashboard/tests/mapping' },
     { id: 'slot-config', label: 'Slot Configuration', path: '/dashboard/slots/config' },
     { id: 'city-catalogue', label: 'City Catalogues', path: '/dashboard/city-catalogues' },
   ]},
-  { id: 'summary', label: 'Organization Summary', path: '/dashboard/summary', children: null },
+  { id: 'summary', label: 'Client Summary', path: '/dashboard/summary', children: null },
   { id: 'available-slots', label: 'Slots Dashboard', path: '/dashboard/available-slots', children: null },
   { id: 'benefit', label: 'Benefit', path: '/dashboard?tab=benefit', children: [
     { id: 'dashboard', label: 'Dashboard', path: '/dashboard?tab=benefit' },
@@ -28,13 +29,13 @@ const NAV_ADMIN = [
 ]
 
 const NAV_EMPLOYEE = [
-  { id: 'summary', label: 'Organization Summary', path: '/dashboard/summary', children: null },
+  { id: 'summary', label: 'Client Summary', path: '/dashboard/summary', children: null },
   { id: 'available-slots', label: 'Slots Dashboard', path: '/dashboard/available-slots', children: null },
   { id: 'price-calculator', label: 'Price Calculator', path: '/dashboard/price-calculator', children: null },
   { id: 'request-dashboard', label: 'Request Dashboard', path: '/dashboard/request-dashboard', children: null },
 ]
 
-const ADMIN_ALLOWED_BASE = ['/dashboard?tab=', '/dashboard/partners', '/dashboard/benefit', '/dashboard/package', '/dashboard/centers', '/dashboard/request-dashboard']
+const ADMIN_ALLOWED_BASE = ['/dashboard?tab=', '/dashboard/partners', '/dashboard/clients', '/dashboard/vendors', '/dashboard/benefit', '/dashboard/package', '/dashboard/centers', '/dashboard/request-dashboard']
 
 function isCreatePath(pathname) {
   return pathname.includes('/create')
@@ -55,7 +56,7 @@ function getExpandedNav(pathname, search, navStructure) {
   const tab = new URLSearchParams(search).get('tab')
   for (const item of navStructure) {
     if (!item.children) continue
-    if (item.id === 'partners' && (pathname.startsWith('/dashboard/partners') || pathname.startsWith('/dashboard/centers') || pathname.startsWith('/dashboard/tests') || pathname.startsWith('/dashboard/slots') || pathname.startsWith('/dashboard/city-catalogues') || tab === 'partners')) return 'partners'
+    if (item.id === 'clients-vendors' && (pathname.startsWith('/dashboard/partners') || pathname.startsWith('/dashboard/clients') || pathname.startsWith('/dashboard/vendors') || pathname.startsWith('/dashboard/centers') || pathname.startsWith('/dashboard/tests') || pathname.startsWith('/dashboard/slots') || pathname.startsWith('/dashboard/catalogues') || tab === 'clients-vendors')) return 'clients-vendors'
     if (item.id === 'benefit' && (pathname.startsWith('/dashboard/benefit') || tab === 'benefit')) return 'benefit'
     if (item.id === 'package' && (pathname.startsWith('/dashboard/package') || tab === 'package')) return 'package'
   }
@@ -147,7 +148,7 @@ export default function DashboardLayout() {
   }, [isResizing])
 
   if (isAdmin && pathname === '/dashboard' && !searchParams.get('tab')) {
-    return <Navigate to="/dashboard?tab=partners" replace />
+    return <Navigate to="/dashboard?tab=clients-vendors" replace />
   }
   if (isHr && pathname === '/dashboard') {
     return <Navigate to="/dashboard/summary" replace />
@@ -156,7 +157,7 @@ export default function DashboardLayout() {
     return <Navigate to="/dashboard/summary" replace />
   }
   if (isAdmin && pathname === '/dashboard/price-calculator') {
-    return <Navigate to="/dashboard?tab=partners" replace />
+    return <Navigate to="/dashboard?tab=clients-vendors" replace />
   }
 
   const handleLogout = () => {
@@ -183,7 +184,7 @@ export default function DashboardLayout() {
 
       <aside className={`sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`} style={{ width: `${sidebarWidth}px`, minWidth: `${sidebarWidth}px` }}>
         <div className="sidebar-header">
-          <Link to={isAdmin ? '/dashboard?tab=partners' : '/dashboard/summary'} className="logo-link" style={{ textDecoration: 'none', color: 'inherit' }}>
+          <Link to={isAdmin ? '/dashboard?tab=clients-vendors' : '/dashboard/summary'} className="logo-link" style={{ textDecoration: 'none', color: 'inherit' }}>
             {isHr ? (
               <span className="logo-icon">HR</span>
             ) : (

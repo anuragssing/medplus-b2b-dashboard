@@ -21,6 +21,7 @@ const CreateBenefit = lazy(() => import('./pages/CreateBenefit'))
 const CreatePackage = lazy(() => import('./pages/CreatePackage'))
 const CreatePartner = lazy(() => import('./pages/CreatePartner'))
 const CreateCollectionCenter = lazy(() => import('./pages/CreateCollectionCenter'))
+const CreateVendor = lazy(() => import('./pages/CreateVendor'))
 const PriceCalculator = lazy(() => import('./pages/PriceCalculator'))
 const EnrollEmployee = lazy(() => import('./pages/EnrollEmployee'))
 const RequestDashboard = lazy(() => import('./pages/RequestDashboard'))
@@ -69,6 +70,11 @@ function App() {
             <Route path="subscriptions/:type" element={<SubscriptionDetails />} />
             <Route path="subscription/:subscriptionId" element={<SubscriptionDetail />} />
             <Route path="clients/create" element={<CreateClient />} />
+            <Route path="clients/view/:id" element={<CreateClient />} />
+            <Route path="clients/edit/:id" element={<CreateClient />} />
+            <Route path="vendors/create" element={<CreateVendor />} />
+            <Route path="vendors/view/:id" element={<CreateVendor />} />
+            <Route path="vendors/edit/:id" element={<CreateVendor />} />
             <Route path="benefit/create" element={<CreateBenefit />} />
             <Route path="benefit/view/:id" element={<CreateBenefit />} />
             <Route path="benefit/edit/:id" element={<CreateBenefit />} />

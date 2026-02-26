@@ -93,17 +93,11 @@ export default function Summary() {
     return null
   }, [user, hrUsers, organizationSummaries, selectedClientId])
 
-  // Get wallet balance for the selected organization
+  // Get wallet balance for the selected client
   const walletBalance = useMemo(() => {
     if (!organizationData) return 0
-
-    // Find the partner ID for this client
-    const client = clients.find(c => c.id === organizationData.clientId)
-    if (!client) return 0
-
-    const partnerId = client.partnerId
-    return organizationWallets[partnerId] || 0
-  }, [organizationData, clients, organizationWallets])
+    return organizationWallets[organizationData.clientId] || 0
+  }, [organizationData, organizationWallets])
 
   // Calculate revenue data dynamically from subscription records
   const revenueData = useMemo(() => {
@@ -174,24 +168,24 @@ export default function Summary() {
     <>
       <header className="main-header">
         <div>
-          <h2 className="page-title">Organization Summary</h2>
+          <h2 className="page-title">Client Summary</h2>
           <p className="page-desc">
             {user?.type === 'hr'
-              ? 'View your organization\'s subscription and usage metrics'
-              : 'Select an organization to view detailed summary'}
+              ? 'View your client\'s subscription and usage metrics'
+              : 'Select a client to view detailed summary'}
           </p>
         </div>
       </header>
 
       <div className="content">
-        {/* Organization Selector for BD Admin */}
+        {/* Client Selector for BD Admin */}
         {user?.type === 'bd_admin' && (
           <section className="panel" style={{ marginBottom: '1.5rem' }}>
             <div style={{ padding: '1rem', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '2rem' }}>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1rem', flex: 1 }}>
                 <div style={{ flex: 1, maxWidth: '400px' }}>
                   <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 500 }}>
-                    Select Organization
+                    Select Client
                   </label>
                   <select
                     value={selectedClientId}
@@ -207,10 +201,10 @@ export default function Summary() {
                       color: 'var(--text)',
                     }}
                   >
-                    <option value="">-- Select an organization --</option>
-                    {clients.filter(client => client.companyName && client.companyName.trim()).map(client => (
+                    <option value="">-- Select a client --</option>
+                    {clients.filter(client => (client.companyName || client.clientName) && (client.companyName || client.clientName).trim()).map(client => (
                       <option key={client.id} value={client.id}>
-                        {client.companyName}
+                        {client.companyName || client.clientName}
                       </option>
                     ))}
                   </select>
@@ -271,7 +265,7 @@ export default function Summary() {
                     fontWeight: 700,
                     padding: '0.5rem 0',
                   }}>
-                    <strong>{organizationData.companyName}</strong>
+                    <strong>{organizationData.companyName || organizationData.clientName}</strong>
                   </div>
                 </div>
                 <button

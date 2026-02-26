@@ -26,7 +26,7 @@ export default function AvailableSlots() {
   const companyName = useMemo(() => {
     if (!clientId) return ''
     const client = (clients || []).find((c) => c.id === clientId)
-    return client?.companyName || ''
+    return client?.companyName || client?.clientName || ''
   }, [clientId, clients])
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), [])
@@ -105,20 +105,20 @@ export default function AvailableSlots() {
               }}
               className="org-select"
             >
-              <option value="">-- Select Organization --</option>
-              {(clients || []).filter(client => client.companyName && client.companyName.trim()).map((client) => (
+              <option value="">-- Select Client --</option>
+              {(clients || []).filter(client => (client.companyName || client.clientName) && (client.companyName || client.clientName).trim()).map((client) => (
                 <option key={client.id} value={client.id}>
-                  {client.companyName}
+                  {client.companyName || client.clientName}
                 </option>
               ))}
             </select>
           </div>
         )}
 
-        {/* Organization Name for HR */}
+        {/* Client Name for HR */}
         {user?.type === 'hr' && companyName && (
           <div className="org-name-section">
-            <strong>Organization:</strong> {companyName}
+            <strong>Client:</strong> {companyName}
           </div>
         )}
       </div>

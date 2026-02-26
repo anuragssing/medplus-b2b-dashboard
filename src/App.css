@@ -943,6 +943,25 @@
 .form-row .form-row:last-child { margin-bottom: 0; }
 .form-section .form-row:last-child { margin-bottom: 0; }
 
+/* Login Email IDs: input + Add button in one row (client/vendor forms) */
+.login-email-add-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.login-email-add-row label {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.login-email-add-row label input { width: 100%; }
+.login-email-add-row .btn-add { flex-shrink: 0; margin-bottom: 0; }
+
 .form-radio-group { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
 .form-radio-group input[type="radio"] { width: auto; margin: 0 0.25rem 0 0; }
 .form-radio-group span:last-child { display: flex; align-items: center; gap: 0.5rem; }

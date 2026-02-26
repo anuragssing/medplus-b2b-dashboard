@@ -32,7 +32,7 @@ export default function CreatePackage() {
         <h2 className="page-title">Package Registration</h2>
         {isAdmin && (
           <p className="page-desc" style={{ marginBottom: '0.25rem' }}>
-            Organization: {orgForPackage ? `${orgForPackage.name} (ID: ${orgForPackage.id})` : 'Select organization from dropdown below.'}
+            Client: {selectedClient ? `${selectedClient.companyName || selectedClient.clientName} (ID: ${selectedClient.id})` : 'Select client from dropdown below.'}
           </p>
         )}
         <p className="page-desc">Fill in the details below to configure a new test package.</p>
@@ -43,7 +43,7 @@ export default function CreatePackage() {
             <div className="form-section">
               <h4 className="form-section-title form-section-title-accent">Package Details</h4>
               <div className="form-row form-row-2">
-                <label>Organization Name <select name="package_organization" value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)}><option value="">Select organization</option>{clients.filter(c => c.companyName && c.companyName.trim()).map(c => <option key={c.id} value={c.id}>{c.companyName}</option>)}</select></label>
+                <label>Client <select name="package_organization" value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)}><option value="">Select client</option>{clients.filter(c => (c.companyName || c.clientName) && (c.companyName || c.clientName).trim()).map(c => <option key={c.id} value={c.id}>{c.companyName || c.clientName}</option>)}</select></label>
                 <label>Package Name <input name="package_name" type="text" placeholder="e.g. Executive Health Checkup" /></label>
               </div>
             </div>

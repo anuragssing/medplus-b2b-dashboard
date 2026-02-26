@@ -222,8 +222,8 @@ export default function RequestDashboard() {
 
   const isAdmin = user?.type === 'bd_admin'
   const isHr = user?.type === 'hr'
-  const organizationId = isHr ? user?.organizationId : null
-  const getOrgName = (orgId) => (orgId ? partners.find((p) => p.id === orgId)?.name ?? orgId : '—')
+  const clientIdForHr = isHr ? user?.organizationId : null
+  const getClientName = (cid) => (cid ? (clients.find((c) => c.id === cid)?.companyName || clients.find((c) => c.id === cid)?.clientName) ?? cid : '—')
 
   const [mainTab, setMainTab] = useState('topup') // 'topup' | 'benefit'
   const [topUpStatusFilter, setTopUpStatusFilter] = useState('initiated')
@@ -265,18 +265,18 @@ export default function RequestDashboard() {
   }, [isAdmin, benefitStatusFilter, benefitStatusesToShow])
 
   const topUpForRole = useMemo(() => {
-    if (isHr && organizationId) {
-      return topUpRequests.filter((r) => r.organizationId === organizationId)
+    if (isHr && clientIdForHr) {
+      return topUpRequests.filter((r) => (r.clientId || r.organizationId) === clientIdForHr)
     }
     return topUpRequests
-  }, [topUpRequests, isHr, organizationId])
+  }, [topUpRequests, isHr, clientIdForHr])
 
   const benefitForRole = useMemo(() => {
-    if (isHr && organizationId) {
-      return benefitRequests.filter((r) => r.organizationId === organizationId)
+    if (isHr && clientIdForHr) {
+      return benefitRequests.filter((r) => (r.clientId || r.organizationId) === clientIdForHr)
     }
     return benefitRequests
-  }, [benefitRequests, isHr, organizationId])
+  }, [benefitRequests, isHr, clientIdForHr])
 
   const filteredTopUp = useMemo(() => {
     return topUpForRole.filter((r) => (r.status || 'initiated') === topUpStatusFilter)
@@ -436,12 +436,12 @@ export default function RequestDashboard() {
     const request = benefitRequests.find((r) => r.id === id)
     const benefit = request ? benefits.find((b) => b.id === request.planId) : null
     if (!benefit) return
-    const partnerId = (clients || []).find((c) => c.id === benefit.clientId)?.partnerId || request?.organizationId
+    const clientId = request?.clientId || benefit?.clientId || ''
     const amount = Number(request?.totalPrice) || 0
-    if (amount > 0 && partnerId) {
-      const balance = Number(organizationWallets[partnerId]) || 0
+    if (amount > 0 && clientId) {
+      const balance = Number(organizationWallets[clientId]) || 0
       if (balance < amount) {
-        alert(`Insufficient wallet balance. Required: ₹${amount.toLocaleString('en-IN')}, Available: ₹${balance.toLocaleString('en-IN')}. Top up the organization wallet first.`)
+        alert(`Insufficient wallet balance. Required: ₹${amount.toLocaleString('en-IN')}, Available: ₹${balance.toLocaleString('en-IN')}. Top up the client wallet first.`)
         return
       }
     }
@@ -468,7 +468,6 @@ export default function RequestDashboard() {
       return { currentFreeAddons, currentPaidAddons }
     }
 
-    const clientId = benefit.clientId || ''
     const today = new Date().toISOString().slice(0, 10)
     const expiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
@@ -479,7 +478,7 @@ export default function RequestDashboard() {
         return
       }
       if (existingSlot.clientId !== clientId) {
-        alert('Slot does not belong to this organization.')
+        alert('Slot does not belong to this client.')
         return
       }
       const isExpired = existingSlot.validTo && today > existingSlot.validTo
@@ -545,7 +544,7 @@ export default function RequestDashboard() {
         })
       }
       const amountExisting = Number(request?.totalPrice) || 0
-      if (partnerId && amountExisting > 0) deductOrganizationWallet(partnerId, amountExisting)
+      if (clientId && amountExisting > 0) deductOrganizationWallet(clientId, amountExisting)
     } else {
       if (benefit?.type === 'combo' && benefit.comboPharmaBenefitId && benefit.comboHealthCareBenefitId) {
         const pharmaBenefit = benefits.find((b) => b.id === benefit.comboPharmaBenefitId)
@@ -580,7 +579,7 @@ export default function RequestDashboard() {
         ])
       }
       const amount = Number(request?.totalPrice) || 0
-      if (partnerId && amount > 0) deductOrganizationWallet(partnerId, amount)
+      if (clientId && amount > 0) deductOrganizationWallet(clientId, amount)
     }
 
     const responseDataUrl = buildEnrollmentResponseFile(request?.uploadedDocumentContent, pharmaCode, healthCareCode, responseSlotId || undefined)
@@ -669,7 +668,7 @@ export default function RequestDashboard() {
         <h2 className="page-title">Request Dashboard</h2>
         {isAdmin && (
           <p className="page-desc" style={{ marginBottom: '0.25rem' }}>
-            Viewing requests for all organizations. Each row shows the organization (ID and name) for the action.
+            Viewing requests for all clients. Each row shows the client (ID and name) for the action.
           </p>
         )}
         <p className="page-desc">View and manage top-up requests (from Price Calculator) and enrollment requests (from Enroll Employee).</p>
@@ -701,7 +700,7 @@ export default function RequestDashboard() {
                   <thead>
                     <tr>
                       <th>Top-Up Request Id</th>
-                      {isAdmin && <th>Organization</th>}
+                      {isAdmin && <th>Client</th>}
                       <th>Total Members</th>
                       <th>Estimated Price</th>
                       <th>Member Info</th>
@@ -727,7 +726,7 @@ export default function RequestDashboard() {
                       topUpPaged.map((r) => (
                         <tr key={r.id}>
                           <td>{r.id}</td>
-                          {isAdmin && <td title={`ID: ${r.organizationId || '—'}`}>{getOrgName(r.organizationId)} {r.organizationId && <span style={{ color: 'var(--text-muted, #666)', fontSize: '0.85em' }}>({r.organizationId})</span>}</td>}
+                          {isAdmin && <td title={`ID: ${(r.clientId || r.organizationId) || '—'}`}>{getClientName(r.clientId || r.organizationId)} {(r.clientId || r.organizationId) && <span style={{ color: 'var(--text-muted, #666)', fontSize: '0.85em' }}>({r.clientId || r.organizationId})</span>}</td>}
                           <td>{r.totalMembers}</td>
                           <td>{formatPrice(r.estimatedPrice)}</td>
                           <td><button type="button" className="request-link-icon" title="Member Info" onClick={() => setMemberInfoRequest(r)}>📄</button></td>
@@ -814,7 +813,7 @@ export default function RequestDashboard() {
                   <thead>
                     <tr>
                       <th>Subscription Request Id</th>
-                      {isAdmin && <th>Organization</th>}
+                      {isAdmin && <th>Client</th>}
                       <th>PlanId</th>
                       <th>Total Price</th>
                       <th>Uploaded Document</th>
@@ -837,7 +836,7 @@ export default function RequestDashboard() {
                       benefitPaged.map((r) => (
                         <tr key={r.id}>
                           <td>{r.id}</td>
-                          {isAdmin && <td title={`ID: ${r.organizationId || '—'}`}>{getOrgName(r.organizationId)} {r.organizationId && <span style={{ color: 'var(--text-muted, #666)', fontSize: '0.85em' }}>({r.organizationId})</span>}</td>}
+                          {isAdmin && <td title={`ID: ${(r.clientId || r.organizationId) || '—'}`}>{getClientName(r.clientId || r.organizationId)} {(r.clientId || r.organizationId) && <span style={{ color: 'var(--text-muted, #666)', fontSize: '0.85em' }}>({r.clientId || r.organizationId})</span>}</td>}
                           <td>{r.planId}</td>
                           <td>{formatPrice(r.totalPrice)}</td>
                           <td>{(r.uploadedDocumentName || r.uploadedDocumentContent) ? <button type="button" className="request-link" onClick={() => downloadUploadedDocument(r)}>Download XLSX Document</button> : '—'}</td>

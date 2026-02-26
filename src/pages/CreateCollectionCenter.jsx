@@ -3,7 +3,6 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useDashboardStore } from '../store/dashboardStore.jsx'
 import { useToast } from '../context/ToastContext'
 import { INDIAN_STATES, CITIES_BY_STATE } from '../data/indiaLocations.js'
-import { getPartnerLabel } from '../utils/partnerUtils.js'
 import { FaEdit, FaMapMarkedAlt, FaCalendarAlt } from 'react-icons/fa'
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -12,7 +11,7 @@ export default function CreateCollectionCenter() {
   const navigate = useNavigate()
   const toast = useToast()
   const {
-    partners = [],
+    vendors = [],
     centers = [],
     addCenter,
     updateCenter
@@ -24,7 +23,7 @@ export default function CreateCollectionCenter() {
   const [editingCenter, setEditingCenter] = useState(null)
 
   // Filters for view tab
-  const [partnerFilter, setPartnerFilter] = useState('')
+  const [vendorFilter, setVendorFilter] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
 
   // Working hours state - default 9 AM to 6 PM for all days
@@ -50,7 +49,7 @@ export default function CreateCollectionCenter() {
     const fd = new FormData(e.target)
 
     const centerData = {
-      partnerId: fd.get('center_partnerId') || '',
+      vendorId: fd.get('center_vendorId') || '',
       name: fd.get('center_name') || '',
       state: fd.get('center_state') || '',
       city: fd.get('center_city') || '',
@@ -108,16 +107,17 @@ export default function CreateCollectionCenter() {
 
   const availableCities = selectedState ? (CITIES_BY_STATE[selectedState] || []) : []
 
-  const getPartnerName = (partnerId) => partners.find((p) => p.id === partnerId)?.name || '—'
+  const getVendorName = (vendorId) => vendors.find((v) => v.id === vendorId)?.name || '—'
 
-  // Filter centers based on search and partner filter
+  // Filter centers based on search and vendor filter
   const filteredCenters = centers.filter(center => {
-    const matchesPartner = !partnerFilter || center.partnerId === partnerFilter
+    const vid = center.vendorId ?? center.partnerId
+    const matchesVendor = !vendorFilter || vid === vendorFilter
     const matchesSearch = !searchQuery ||
       center.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       center.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       center.address?.toLowerCase().includes(searchQuery.toLowerCase())
-    return matchesPartner && matchesSearch
+    return matchesVendor && matchesSearch
   })
 
   const handleCenterClick = (center) => {
@@ -196,7 +196,7 @@ export default function CreateCollectionCenter() {
                 <div className="form-section">
                   <div className="form-row form-row-2">
                     <label>Center name <input name="center_name" type="text" placeholder="e.g. Central Hub" defaultValue={editingCenter?.name || ''} required /></label>
-                    <label>Partner <select name="center_partnerId" defaultValue={editingCenter?.partnerId || ''} required><option value="">Select partner</option>{partners.filter(p => p.partnerType !== 'organization').map(p => <option key={p.id} value={p.id}>{getPartnerLabel(p)}</option>)}</select></label>
+                    <label>Vendor <select name="center_vendorId" defaultValue={editingCenter?.vendorId || editingCenter?.partnerId || ''} required><option value="">Select vendor</option>{vendors.map(v => <option key={v.id} value={v.id}>{v.name} ({v.id})</option>)}</select></label>
                   </div>
                   <div className="form-row form-row-2">
                     <label>Country <input type="text" value="India" readOnly style={{ backgroundColor: '#f5f5f5', cursor: 'not-allowed' }} /></label>
@@ -309,13 +309,13 @@ export default function CreateCollectionCenter() {
                   style={{ flex: 1, minWidth: '200px' }}
                 />
                 <select
-                  value={partnerFilter}
-                  onChange={(e) => setPartnerFilter(e.target.value)}
+                  value={vendorFilter}
+                  onChange={(e) => setVendorFilter(e.target.value)}
                   style={{ minWidth: '220px' }}
                 >
-                  <option value="">All Partners</option>
-                  {partners.filter(p => ['diagnostic', 'collection_center', 'processing_center'].includes(p.partnerType)).map((p) => (
-                    <option key={p.id} value={p.id}>{getPartnerLabel(p)}</option>
+                  <option value="">All Vendors</option>
+                  {vendors.map((v) => (
+                    <option key={v.id} value={v.id}>{v.name} ({v.id})</option>
                   ))}
                 </select>
               </div>
@@ -332,7 +332,7 @@ export default function CreateCollectionCenter() {
                       <tr>
                         <th>Center ID</th>
                         <th>Center Name</th>
-                        <th>Partner</th>
+                        <th>Vendor</th>
                         <th>State</th>
                         <th>City</th>
                         <th>Address</th>
@@ -365,7 +365,7 @@ export default function CreateCollectionCenter() {
                             </span>
                           </td>
                           <td><strong>{c.name}</strong></td>
-                          <td>{getPartnerName(c.partnerId)}</td>
+                          <td>{getVendorName(c.vendorId ?? c.partnerId)}</td>
                           <td>{c.state || '—'}</td>
                           <td>{c.city}</td>
                           <td>{c.address}</td>
@@ -429,8 +429,8 @@ export default function CreateCollectionCenter() {
                     <div style={{ fontWeight: 600 }}>{selectedCenter.name}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.75rem', color: '#666', marginBottom: '0.25rem' }}>Partner</div>
-                    <div>{getPartnerName(selectedCenter.partnerId)}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#666', marginBottom: '0.25rem' }}>Vendor</div>
+                    <div>{getVendorName(selectedCenter.vendorId ?? selectedCenter.partnerId)}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: '0.75rem', color: '#666', marginBottom: '0.25rem' }}>Total Slots</div>

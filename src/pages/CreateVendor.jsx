@@ -3,12 +3,17 @@ import { useNavigate, Link, useParams, useLocation } from 'react-router-dom'
 import { useDashboardStore } from '../store/dashboardStore.jsx'
 import '../App.css'
 
+const VENDOR_TYPES = [
+  { value: 'processing_vendor', label: 'Processing vendor' },
+  { value: 'collection_vendor', label: 'Collection vendor' },
+  { value: 'diagnostic_vendor', label: 'Diagnostic vendor' },
+]
 const MAX_LOGIN_EMAILS = 20
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_LENGTH = 10
 const isValidPhone = (value) => /^\d{10}$/.test((value || '').trim())
 
-export default function CreateClient() {
+export default function CreateVendor() {
   const navigate = useNavigate()
   const { id } = useParams()
   const location = useLocation()
@@ -17,16 +22,13 @@ export default function CreateClient() {
   const isEdit = pathname.includes('/edit/')
   const isCreate = !id
 
-  const { partners = [], clients = [], addClient, updateClient } = useDashboardStore()
-  const organizationPartners = partners.filter((p) => p.partnerType === 'organization')
-  const client = id ? (clients || []).find((c) => c.id === id) : null
-  // One partner can have only one client: show only partners that don't already have a client (when creating)
-  const organizationPartnersAvailable = isCreate
-    ? organizationPartners.filter((p) => !(clients || []).some((c) => c.partnerId === p.id))
-    : organizationPartners
+  const { partners = [], vendors = [], addVendor, updateVendor } = useDashboardStore()
+  const thirdPartyPartners = partners.filter((p) => p.partnerType === 'third_party_partner')
+  const vendor = id ? (vendors || []).find((v) => v.id === id) : null
 
   const [partnerId, setPartnerId] = useState('')
-  const [clientName, setClientName] = useState('')
+  const [vendorName, setVendorName] = useState('')
+  const [vendorType, setVendorType] = useState('')
   const [status, setStatus] = useState('active')
   const [contactName, setContactName] = useState('')
   const [contactEmail, setContactEmail] = useState('')
@@ -36,28 +38,29 @@ export default function CreateClient() {
   const [loginEmailError, setLoginEmailError] = useState('')
 
   useEffect(() => {
-    if (client) {
-      setPartnerId(client.partnerId || '')
-      setClientName(client.companyName || client.clientName || '')
-      setStatus((client.status || 'active').toLowerCase())
-      setContactName(client.contactName || '')
-      setContactEmail(client.email || '')
-      setContactPhone(client.phone || '')
-      setLoginEmails(Array.isArray(client.loginEmails) ? [...client.loginEmails] : [])
+    if (vendor) {
+      setPartnerId(vendor.partnerId || '')
+      setVendorName(vendor.name || '')
+      setVendorType(vendor.type || '')
+      setStatus((vendor.status || 'active').toLowerCase())
+      setContactName(vendor.contactName || '')
+      setContactEmail(vendor.email || '')
+      setContactPhone(vendor.phone || '')
+      setLoginEmails(Array.isArray(vendor.loginEmails) ? [...vendor.loginEmails] : [])
     }
-  }, [client?.id])
+  }, [vendor?.id])
 
   useEffect(() => {
-    if ((isView || isEdit) && id && !client) {
-      navigate('/dashboard?tab=clients-vendors&sub=clients', { replace: true })
+    if ((isView || isEdit) && id && !vendor) {
+      navigate('/dashboard?tab=clients-vendors&sub=vendors', { replace: true })
     }
-  }, [id, client, isView, isEdit, navigate])
+  }, [id, vendor, isView, isEdit, navigate])
 
-  const selectedPartner = partnerId ? organizationPartners.find((p) => p.id === partnerId) : null
+  const selectedPartner = partnerId ? thirdPartyPartners.find((p) => p.id === partnerId) : null
 
   useEffect(() => {
     if (isCreate && selectedPartner) {
-      setClientName(selectedPartner.name || '')
+      setVendorName(selectedPartner.name || '')
       const c = (selectedPartner.contact || '').trim()
       if (EMAIL_REGEX.test(c)) {
         setContactEmail(c)
@@ -108,23 +111,38 @@ export default function CreateClient() {
         alert('Phone Number must be numeric and exactly 10 digits.')
         return
       }
-      updateClient(id, {
+      const nameNormEdit = (vendorName || '').trim().toLowerCase()
+      const duplicateEdit = (vendors || []).some((v) => v.type === vendorType && v.id !== id && (v.name || '').trim().toLowerCase() === nameNormEdit)
+      if (duplicateEdit) {
+        alert('Another vendor of the same type already has this name. Each vendor of the same type must have a unique name.')
+        return
+      }
+      updateVendor(id, {
         status: status === 'inactive' ? 'inactive' : 'active',
         contactName: contactName.trim(),
         email: contactEmail.trim(),
         phone: contactPhone.trim(),
         loginEmails: [...loginEmails],
       })
-      navigate('/dashboard?tab=clients-vendors&sub=clients', { replace: true })
+      navigate('/dashboard?tab=clients-vendors&sub=vendors', { replace: true })
       return
     }
     if (!partnerId) {
       alert('Please select a partner.')
       return
     }
-    const existingClientForPartner = (clients || []).find((c) => c.partnerId === partnerId)
-    if (existingClientForPartner) {
-      alert('This partner already has an organization (client). One partner can have only one client.')
+    if (!(vendorName && vendorName.trim())) {
+      alert('Vendor Name is mandatory.')
+      return
+    }
+    if (!vendorType) {
+      alert('Please select Vendor Type.')
+      return
+    }
+    const nameNorm = (vendorName || '').trim().toLowerCase()
+    const duplicateSameType = (vendors || []).some((v) => v.type === vendorType && v.id !== id && (v.name || '').trim().toLowerCase() === nameNorm)
+    if (duplicateSameType) {
+      alert('Another vendor of the same type already has this name. Each vendor of the same type must have a unique name.')
       return
     }
     if (!(contactName && contactEmail && contactPhone)) {
@@ -135,26 +153,26 @@ export default function CreateClient() {
       alert('Phone Number must be numeric and exactly 10 digits.')
       return
     }
-    addClient({
+    addVendor({
       partnerId,
-      companyName: clientName,
-      clientName: clientName,
+      name: vendorName.trim(),
+      type: vendorType,
       status: 'active',
       contactName: contactName.trim(),
       email: contactEmail.trim(),
       phone: contactPhone.trim(),
       loginEmails: [...loginEmails],
     })
-    navigate('/dashboard?tab=clients-vendors&sub=clients', { replace: true })
+    navigate('/dashboard?tab=clients-vendors&sub=vendors', { replace: true })
   }
 
   const readOnlyAll = isView
   const readOnlyPartnerAndName = isEdit
-  const backLink = '/dashboard?tab=clients-vendors&sub=clients'
-  const title = isView ? 'View Client' : isEdit ? 'Edit Client' : 'Create Client'
-  const desc = isView ? 'Client details (read-only).' : isEdit ? 'Update client details below. Partner and Client Name cannot be changed.' : 'Create a client (organization) by selecting an organization partner. Contact details can be auto-imported from the partner.'
+  const backLink = '/dashboard?tab=clients-vendors&sub=vendors'
+  const title = isView ? 'View Vendor' : isEdit ? 'Edit Vendor' : 'Create Vendor'
+  const desc = isView ? 'Vendor details (read-only).' : isEdit ? 'Update vendor details below. Partner and Vendor Name cannot be changed.' : 'Create a vendor by selecting a Third Party Partner. Contact details are mandatory.'
 
-  if ((isView || isEdit) && id && !client) {
+  if ((isView || isEdit) && id && !vendor) {
     return (
       <div className="content">
         <section className="panel"><p style={{ padding: '1rem', textAlign: 'center' }}>Loading...</p></section>
@@ -175,27 +193,31 @@ export default function CreateClient() {
         <section className="panel">
           <form className="form form-modal form-partner" onSubmit={handleSubmit} autoComplete="off">
             <div className="form-section">
-              <h4 className="form-section-title">| Client Details</h4>
+              <h4 className="form-section-title">| Vendor Details</h4>
               <div className="form-row form-row-2">
                 <label>Partner * <select name="partner_id" required value={partnerId} onChange={(e) => setPartnerId(e.target.value)} disabled={readOnlyAll || readOnlyPartnerAndName}>
-                  <option value="">Select Organization Partner...</option>
-                  {(isCreate ? organizationPartnersAvailable : organizationPartners).map((p) => (
+                  <option value="">Select Third Party Partner...</option>
+                  {thirdPartyPartners.map((p) => (
                     <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
                   ))}
                 </select></label>
-                <label>Client Name * <input name="client_name" type="text" required value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Same as partner name" readOnly={readOnlyAll || readOnlyPartnerAndName} disabled={readOnlyAll || readOnlyPartnerAndName} style={(readOnlyAll || readOnlyPartnerAndName) ? { backgroundColor: '#f5f5f5' } : undefined} /></label>
+                <label>Vendor Name * <input name="vendor_name" type="text" required value={vendorName} onChange={(e) => setVendorName(e.target.value)} placeholder="Vendor name" readOnly={readOnlyAll || readOnlyPartnerAndName} disabled={readOnlyAll || readOnlyPartnerAndName} style={(readOnlyAll || readOnlyPartnerAndName) ? { backgroundColor: '#f5f5f5' } : undefined} /></label>
               </div>
               <div className="form-row form-row-2">
-                <label>Status {isCreate ? <input type="text" readOnly value="Active" style={{ backgroundColor: '#f5f5f5' }} /> : <select name="client_status" value={status} onChange={(e) => setStatus(e.target.value)} disabled={readOnlyAll}>
+                <label>Type * <select name="vendor_type" required value={vendorType} onChange={(e) => setVendorType(e.target.value)} disabled={readOnlyAll || isEdit}>
+                  <option value="">Select type...</option>
+                  {VENDOR_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select></label>
+                <label>Status {isCreate ? <input type="text" readOnly value="Active" style={{ backgroundColor: '#f5f5f5' }} /> : <select name="vendor_status" value={status} onChange={(e) => setStatus(e.target.value)} disabled={readOnlyAll}>
                   <option value="active">Active</option>
                   <option value="inactive">Inactive</option>
                 </select>}</label>
-                <label />
               </div>
             </div>
             <div className="form-section">
               <h4 className="form-section-title">| Contact Details</h4>
-              {isCreate && <p className="form-hint" style={{ marginBottom: '0.75rem' }}>Auto-imported from partner if available. Please confirm or edit.</p>}
               <div className="form-row form-row-3">
                 <label>Name * <input name="contact_name" type="text" required value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="Contact person" readOnly={readOnlyAll} disabled={readOnlyAll} style={readOnlyAll ? { backgroundColor: '#f5f5f5' } : undefined} /></label>
                 <label>Email ID * <input name="contact_email" type="email" required value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="email@example.com" readOnly={readOnlyAll} disabled={readOnlyAll} style={readOnlyAll ? { backgroundColor: '#f5f5f5' } : undefined} /></label>
@@ -238,7 +260,7 @@ export default function CreateClient() {
             </div>
             {!readOnlyAll && (
               <div className="form-section-actions" style={{ justifyContent: 'flex-end' }}>
-                {isCreate && <button type="submit" className="btn-primary">Create Client</button>}
+                {isCreate && <button type="submit" className="btn-primary">Create Vendor</button>}
                 {isEdit && <button type="submit" className="btn-primary">Update</button>}
               </div>
             )}

@@ -4,9 +4,7 @@
 
 export const PARTNER_TYPE_LABELS = {
   organization: 'Organization',
-  diagnostic: 'Diagnostic',
-  collection_center: 'Collection Center',
-  processing_center: 'Processing Center',
+  third_party_partner: 'Third Party Partner',
 }
 
 /**

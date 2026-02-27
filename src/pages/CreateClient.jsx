@@ -20,10 +20,8 @@ export default function CreateClient() {
   const { partners = [], clients = [], addClient, updateClient } = useDashboardStore()
   const organizationPartners = partners.filter((p) => p.partnerType === 'organization')
   const client = id ? (clients || []).find((c) => c.id === id) : null
-  // One partner can have only one client: show only partners that don't already have a client (when creating)
-  const organizationPartnersAvailable = isCreate
-    ? organizationPartners.filter((p) => !(clients || []).some((c) => c.partnerId === p.id))
-    : organizationPartners
+  // One partner can have multiple clients: show all organization partners in the dropdown
+  const organizationPartnersAvailable = organizationPartners
 
   const [partnerId, setPartnerId] = useState('')
   const [clientName, setClientName] = useState('')
@@ -122,9 +120,14 @@ export default function CreateClient() {
       alert('Please select a partner.')
       return
     }
-    const existingClientForPartner = (clients || []).find((c) => c.partnerId === partnerId)
-    if (existingClientForPartner) {
-      alert('This partner already has an organization (client). One partner can have only one client.')
+    if (!(clientName && clientName.trim())) {
+      alert('Client Name is mandatory.')
+      return
+    }
+    const nameNorm = (clientName || '').trim().toLowerCase()
+    const duplicateNameSamePartner = (clients || []).some((c) => c.partnerId === partnerId && (c.companyName || c.clientName || '').trim().toLowerCase() === nameNorm)
+    if (duplicateNameSamePartner) {
+      alert('This partner already has a client with the same name. Client names must be unique per partner.')
       return
     }
     if (!(contactName && contactEmail && contactPhone)) {

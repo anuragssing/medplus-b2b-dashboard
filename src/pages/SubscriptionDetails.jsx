@@ -123,12 +123,16 @@ export default function SubscriptionDetails() {
 
   const handleDownloadExcel = () => {
     // Prepare data for Excel
-    const excelData = filteredRecords.map(record => ({
+    const excelData = filteredRecords.map(record => {
+      const idx = subscriptionRecords.findIndex((r) => r.id === record.id)
+      const customerIdNum = record.customerId != null && record.customerId !== '' ? String(record.customerId) : (idx >= 0 ? String(1001 + idx) : '')
+      return {
       'Subscription ID': record.subscriptionId,
       'Created On': formatDate(record.createdOn),
       'Actived On': formatDate(record.activedOn),
       'Expiry Date': formatDate(record.expiryDate),
       'Status': record.status,
+      'Customer ID': customerIdNum,
       'Customer': record.customer,
       'Mobile No.': record.mobileNo,
       'Subscribed Plan': record.planName || '-',
@@ -137,7 +141,8 @@ export default function SubscriptionDetails() {
       'Savings': record.savings,
       'Credit Used': record.mrpUsed,
       'Credit Balance': record.mrpBalance,
-    }))
+    }
+    })
 
     // Create worksheet
     const ws = XLSX.utils.json_to_sheet(excelData)
@@ -149,6 +154,7 @@ export default function SubscriptionDetails() {
       { wch: 15 }, // Actived On
       { wch: 15 }, // Expiry Date
       { wch: 10 }, // Status
+      { wch: 12 }, // Customer ID
       { wch: 20 }, // Customer
       { wch: 15 }, // Mobile No.
       { wch: 25 }, // Subscribed Plan
@@ -276,6 +282,7 @@ export default function SubscriptionDetails() {
                   <th>Actived On</th>
                   <th>Expiry Date</th>
                   <th>Status</th>
+                  <th>Customer ID</th>
                   <th>Customer</th>
                   <th>Mobile No.</th>
                   <th>Subscribed Plan</th>
@@ -289,7 +296,10 @@ export default function SubscriptionDetails() {
               </thead>
               <tbody>
                 {paginatedRecords.length > 0 ? (
-                  paginatedRecords.map((record) => (
+                  paginatedRecords.map((record) => {
+                    const idx = subscriptionRecords.findIndex((r) => r.id === record.id)
+                    const customerIdNum = record.customerId != null && record.customerId !== '' ? String(record.customerId) : (idx >= 0 ? String(1001 + idx) : '—')
+                    return (
                     <tr key={record.id}>
                       <td>{getSlotIdForRecord(record)}</td>
                       <td>
@@ -312,6 +322,7 @@ export default function SubscriptionDetails() {
                           {record.status}
                         </span>
                       </td>
+                      <td><strong>{customerIdNum}</strong></td>
                       <td>{record.customer}</td>
                       <td>{record.mobileNo}</td>
                       <td>{record.planName || '-'}</td>
@@ -336,10 +347,11 @@ export default function SubscriptionDetails() {
                         </td>
                       )}
                     </tr>
-                  ))
+                    )
+                  })
                 ) : (
                   <tr>
-                    <td colSpan={filterType === 'cancelled' ? 14 : 15} style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)' }}>
+                    <td colSpan={filterType === 'cancelled' ? 15 : 16} style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)' }}>
                       No subscription records found
                     </td>
                   </tr>

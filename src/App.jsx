@@ -31,6 +31,7 @@ const SlotConfiguration = lazy(() => import('./pages/SlotConfiguration'))
 const CityCatalogue = lazy(() => import('./pages/CityCatalogue'))
 const CityCatalogueDetail = lazy(() => import('./pages/CityCatalogueDetail'))
 const AvailableSlots = lazy(() => import('./pages/AvailableSlots'))
+const OrderDashboard = lazy(() => import('./pages/OrderDashboard'))
 
 function App() {
   return (
@@ -67,6 +68,7 @@ function App() {
           >
             <Route index element={<Dashboard />} />
             <Route path="summary" element={<Summary />} />
+            <Route path="order-dashboard" element={<OrderDashboard />} />
             <Route path="subscriptions/:type" element={<SubscriptionDetails />} />
             <Route path="subscription/:subscriptionId" element={<SubscriptionDetail />} />
             <Route path="clients/create" element={<CreateClient />} />

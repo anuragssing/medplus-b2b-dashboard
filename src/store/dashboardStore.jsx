@@ -382,6 +382,21 @@ const initialSubscriptionMembers = [
   { subscriptionId: '10860704', name: 'Harish', isPrimary: true, addedOn: '2026-02-09' },
 ]
 
+// Order dashboard: sample orders linked to subscriptions (customerId 1001+), centers (cc1, cc2, cc3), vendors (v1, v2)
+export const ORDER_STATUSES = ['pending', 'confirmed', 'sample_collected', 'processing', 'completed', 'cancelled']
+const initialOrders = [
+  { id: 'ord-1', displayOrderId: 'ORD-1001', orderId: 'ord-1', cartId: 'cart-2001', customerId: '1001', mobileNo: '8460001456', centerId: 'cc1', vendorId: 'v1', payment: 'paid', typeActionStatus: 'sample_collected', orderAmount: 2499, dateCreated: '2026-02-18T10:30:00.000Z', status: 'sample_collected' },
+  { id: 'ord-2', displayOrderId: 'ORD-1002', orderId: 'ord-2', cartId: 'cart-2002', customerId: '1002', mobileNo: '9000012345', centerId: 'cc1', vendorId: 'v1', payment: 'paid', typeActionStatus: 'pending', orderAmount: 1899, dateCreated: '2026-02-18T11:00:00.000Z', status: 'confirmed' },
+  { id: 'ord-3', displayOrderId: 'ORD-1003', orderId: 'ord-3', cartId: 'cart-2003', customerId: '1003', mobileNo: '9876543210', centerId: 'cc2', vendorId: 'v1', payment: 'pending', typeActionStatus: 'pending', orderAmount: 3200, dateCreated: '2026-02-17T14:20:00.000Z', status: 'pending' },
+  { id: 'ord-4', displayOrderId: 'ORD-1004', orderId: 'ord-4', cartId: 'cart-2004', customerId: '1004', mobileNo: '9123456789', centerId: 'cc1', vendorId: 'v1', payment: 'paid', typeActionStatus: 'sample_collected', orderAmount: 1500, dateCreated: '2026-02-17T09:15:00.000Z', status: 'processing' },
+  { id: 'ord-5', displayOrderId: 'ORD-1005', orderId: 'ord-5', cartId: 'cart-2005', customerId: '1005', mobileNo: '8460001456', centerId: 'cc3', vendorId: 'v2', payment: 'paid', typeActionStatus: 'acknowledged', orderAmount: 899, dateCreated: '2026-02-16T16:45:00.000Z', status: 'completed' },
+  { id: 'ord-6', displayOrderId: 'ORD-1006', orderId: 'ord-6', cartId: 'cart-2006', customerId: '1012', mobileNo: '9876501234', centerId: 'cc1', vendorId: 'v1', payment: 'paid', typeActionStatus: 'sample_collected', orderAmount: 4100, dateCreated: '2026-02-16T08:00:00.000Z', status: 'sample_collected' },
+  { id: 'ord-7', displayOrderId: 'ORD-1007', orderId: 'ord-7', cartId: 'cart-2007', customerId: '1013', mobileNo: '9123450987', centerId: 'cc2', vendorId: 'v1', payment: 'pending', typeActionStatus: 'pending', orderAmount: 2100, dateCreated: '2026-02-15T12:30:00.000Z', status: 'pending' },
+  { id: 'ord-8', displayOrderId: 'ORD-1008', orderId: 'ord-8', cartId: 'cart-2008', customerId: '1020', mobileNo: '9988112233', centerId: 'cc3', vendorId: 'v2', payment: 'paid', typeActionStatus: 'acknowledged', orderAmount: 1850, dateCreated: '2026-02-15T10:00:00.000Z', status: 'completed' },
+  { id: 'ord-9', displayOrderId: 'ORD-1009', orderId: 'ord-9', cartId: 'cart-2009', customerId: '1001', mobileNo: '8460001456', centerId: 'cc1', vendorId: 'v1', payment: 'cancelled', typeActionStatus: 'cancelled', orderAmount: 999, dateCreated: '2026-02-14T13:00:00.000Z', status: 'cancelled' },
+  { id: 'ord-10', displayOrderId: 'ORD-1010', orderId: 'ord-10', cartId: 'cart-2010', customerId: '1022', mobileNo: '9123776655', centerId: 'cc3', vendorId: 'v2', payment: 'paid', typeActionStatus: 'pending', orderAmount: 2200, dateCreated: '2026-02-19T09:00:00.000Z', status: 'confirmed' },
+]
+
 // Function to generate slots from active subscriptions
 function generateSlotsFromSubscriptions() {
   const slots = []
@@ -556,6 +571,7 @@ export const useDashboardStore = create(
         slotConfigurations: [],
         cityCatalogues: initialCityCatalogues,
         cityCatalogueTestMappings: initialCityCatalogueTestMappings,
+        orders: initialOrders,
 
       addPartner: (partner) =>
         set((s) => {

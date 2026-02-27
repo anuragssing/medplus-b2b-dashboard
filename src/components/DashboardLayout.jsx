@@ -16,6 +16,7 @@ const NAV_ADMIN = [
     { id: 'city-catalogue', label: 'City Catalogues', path: '/dashboard/city-catalogues' },
   ]},
   { id: 'summary', label: 'Client Summary', path: '/dashboard/summary', children: null },
+  { id: 'order-dashboard', label: 'Order Dashboard', path: '/dashboard/order-dashboard', children: null },
   { id: 'available-slots', label: 'Slots Dashboard', path: '/dashboard/available-slots', children: null },
   { id: 'benefit', label: 'Benefit', path: '/dashboard?tab=benefit', children: [
     { id: 'dashboard', label: 'Dashboard', path: '/dashboard?tab=benefit' },
@@ -61,6 +62,7 @@ function getExpandedNav(pathname, search, navStructure) {
     if (item.id === 'package' && (pathname.startsWith('/dashboard/package') || tab === 'package')) return 'package'
   }
   if (pathname === '/dashboard/summary') return 'summary'
+  if (pathname === '/dashboard/order-dashboard') return 'order-dashboard'
   return null
 }
 
